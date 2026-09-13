@@ -6,7 +6,7 @@ MediCafe V1 is the public planning home for a cloud-authoritative medical billin
 
 ## Current status
 
-This repository is in architecture and foundation planning. It contains no application runtime, deployment configuration, or production readiness claim. Public examples and future fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
+This repository contains the accepted architecture and a draft synthetic F1 application foundation under review. It contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
 
 The V1 plan is the source for the proposed product shape, authority model, repository boundary, roadmap, and multi-agent working model:
 

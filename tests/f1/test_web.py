@@ -96,6 +96,24 @@ class WebScopingAndPostTests(F1TestCase):
         self.assertEqual(parsed_response.status_code, 302)
         self.assertEqual(ParseResult.objects.filter(delivery=delivery).count(), 1)
 
+    def test_csrf_valid_invalid_upload_rerenders_errors_without_mutation_and_preserves_key(self):
+        client = self._login(self.alpha_user)
+        upload_url = reverse("upload", kwargs={"organization_id": self.alpha.id})
+        token = self._csrf(client, upload_url)
+        source_key = str(uuid.uuid4())
+
+        response = client.post(upload_url, {
+            "csrfmiddlewaretoken": token,
+            "source_namespace": "synthetic-invalid-upload",
+            "source_key": source_key,
+            # Intentionally omit source_file.
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required")
+        self.assertContains(response, source_key)
+        self.assertEqual(Delivery.objects.filter(organization=self.alpha).count(), 0)
+
     def test_observation_resolution_post_is_explicit_and_scoped(self):
         admitted = self.admit(content=csv_bytes(synthetic_rows(note=SYNTHETIC_SENTINEL)))
         self.parse(admitted.delivery_id)

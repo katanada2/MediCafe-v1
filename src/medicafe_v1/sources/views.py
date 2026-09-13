@@ -54,6 +54,8 @@ def worklist(request, organization_id):
 
 @login_required
 def upload(request, organization_id):
+    if request.method not in {"GET", "POST"}:
+        return HttpResponseNotAllowed(["GET", "POST"])
     form = UploadForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
         source_file = form.cleaned_data["source_file"]
@@ -70,8 +72,6 @@ def upload(request, organization_id):
         else:
             messages.success(request, result.reason_code)
             return redirect("delivery_detail", organization_id=organization_id, delivery_id=result.delivery_id)
-    elif request.method != "GET":
-        return HttpResponseNotAllowed(["GET", "POST"])
     return render(request, "sources/upload.html", {"form": form, "organization_id": organization_id})
 
 
