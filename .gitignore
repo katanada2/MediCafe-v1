@@ -69,3 +69,7 @@ storage/*
 !data/synthetic/**
 !reports/synthetic/
 !reports/synthetic/**
+
+# Generated caches stay ignored even inside deliberately trackable fixtures.
+tests/fixtures/**/__pycache__/
+tests/fixtures/**/*.py[cod]
