@@ -2,6 +2,8 @@
 
 MediCafe V1 is in architecture and foundation planning. The roadmap has no dates and does not represent production readiness.
 
+See [foundation cards](FOUNDATION_CARDS.md) for the admitted F1 implementation scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2-F4 remain gated.
+
 ## Milestones
 
 1. **Charter** — agree on product intent, authority boundaries, repository boundary, and architectural direction.

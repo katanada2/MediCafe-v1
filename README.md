@@ -8,6 +8,9 @@ This repository is in architecture and foundation planning. It contains no appli
 
 The V1 plan is the source for the proposed product shape, authority model, repository boundary, roadmap, and multi-agent working model:
 
+- [Architecture charter](docs/architecture/CHARTER.md)
+- [Foundation cards](docs/roadmap/FOUNDATION_CARDS.md)
+- [Delivery handoff](docs/roadmap/DELIVERY_HANDOFF.md)
 - [MediCafe V1 plan](docs/architecture/MEDICAFE_V1_PLAN.md)
 - [Architecture index](docs/architecture/README.md)
 - [Decision records](docs/decisions/README.md)

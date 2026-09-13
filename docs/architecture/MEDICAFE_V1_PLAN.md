@@ -1,6 +1,6 @@
 # MediCafe V1 plan
 
-**Status:** architecture and foundation planning only. This document describes a target direction; it does not authorize runtime implementation, migration, deployment, or a production-readiness claim.
+**Status:** original architecture and foundation-planning baseline. The subsequent [charter](CHARTER.md) and [foundation cards](../roadmap/FOUNDATION_CARDS.md) govern scoped synthetic implementation after their milestone merges. This original plan alone does not authorize runtime implementation, migration, deployment, or a production-readiness claim.
 
 ## Purpose and relationship to V0
 
