@@ -1,0 +1,69 @@
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Local Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+.secrets/
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private clinic and operational material
+private/
+private-data/
+private-operations/
+ops-private/
+clinic-data/
+real-data/
+local-data/
+support-bundles/
+migration-evidence/
+
+# Local databases, logs, and generated outputs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+build/
+dist/
+tmp/
+output/*
+artifacts/*
+data/*
+reports/*
+storage/*
+
+# Deliberate synthetic material remains trackable in these locations.
+!fixtures/
+!fixtures/**
+!tests/fixtures/
+!tests/fixtures/**
+!docs/examples/
+!docs/examples/**
+!artifacts/synthetic/
+!artifacts/synthetic/**
+!data/synthetic/
+!data/synthetic/**
+!reports/synthetic/
+!reports/synthetic/**
