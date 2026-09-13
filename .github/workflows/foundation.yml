@@ -32,7 +32,7 @@ jobs:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
       POSTGRES_CONNECT_TIMEOUT: 3
-      MEDICAFE_ARTIFACT_ROOT: ${{ runner.temp }}/medicafe-artifacts
+      MEDICAFE_ARTIFACT_ROOT: /tmp/medicafe-artifacts
       DJANGO_SECRET_KEY: synthetic-ci-only
     steps:
       - uses: actions/checkout@v7
@@ -47,4 +47,3 @@ jobs:
       - run: uv run python manage.py check
       - run: uv run python manage.py makemigrations --check --dry-run
       - run: uv run python manage.py test tests.f1 --verbosity 2
-
