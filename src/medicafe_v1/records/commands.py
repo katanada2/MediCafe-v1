@@ -54,6 +54,14 @@ def resolve_identity(*, actor, organization_id, observation_id, request_uuid, in
             )
         except Observation.DoesNotExist as exc:
             raise CommandError("observation_not_found") from exc
+        # A concurrent identical request may have committed while this caller waited for the observation lock.
+        prior_request = IdentityDecision.objects.filter(
+            organization_id=organization_id, request_uuid=request_uuid
+        ).first()
+        if prior_request:
+            if prior_request.input_digest != input_digest:
+                raise CommandError("request_input_conflict")
+            return _result(prior_request, "resolution_replayed")
         accepted = IdentityDecision.objects.filter(observation=observation).first()
         if accepted:
             if (intent.mode == "attach" and str(accepted.patient_id) == str(intent.patient_id)

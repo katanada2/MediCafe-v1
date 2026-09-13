@@ -95,6 +95,48 @@ class AdmissionAndArtifactTests(F1TestCase):
         parsed = self.parse(delivery.id)
         self.assertEqual(parsed.reason_code, "parse_succeeded")
 
+    def test_promotion_failure_commits_nothing_and_post_promotion_residue_is_reusable(self):
+        content = csv_bytes(synthetic_rows(note="SYNTHETIC_FAILURE_WINDOW"))
+
+        class PromotionFailureStore(LocalArtifactStore):
+            def put(self, organization_id, payload):
+                raise CommandError("artifact_promotion_failed")
+
+        with self.assertRaises(CommandError) as promotion_failure:
+            from medicafe_v1.sources.commands import admit_delivery
+            admit_delivery(
+                actor=self.alpha_user, organization_id=self.alpha.id,
+                source_namespace="synthetic-window", source_key=str(uuid.uuid4()),
+                content=content, media_type=CSV_MEDIA_TYPE,
+                artifact_store=PromotionFailureStore(self._artifact_tmp.name),
+            )
+        self.assertEqual(promotion_failure.exception.reason_code, "artifact_promotion_failed")
+        self.assertEqual(Artifact.objects.count(), 0)
+        self.assertEqual(Delivery.objects.count(), 0)
+
+        class CrashAfterPromotionStore(LocalArtifactStore):
+            def put(self, organization_id, payload):
+                digest, key = super().put(organization_id, payload)
+                self.promoted_path = self.root / key
+                raise CommandError("synthetic_crash_after_promotion")
+
+        crash_store = CrashAfterPromotionStore(self._artifact_tmp.name)
+        source_key = str(uuid.uuid4())
+        with self.assertRaises(CommandError):
+            from medicafe_v1.sources.commands import admit_delivery
+            admit_delivery(
+                actor=self.alpha_user, organization_id=self.alpha.id,
+                source_namespace="synthetic-window", source_key=source_key,
+                content=content, media_type=CSV_MEDIA_TYPE, artifact_store=crash_store,
+            )
+        self.assertTrue(crash_store.promoted_path.is_file())
+        self.assertEqual(Artifact.objects.count(), 0)
+        self.assertEqual(Delivery.objects.count(), 0)
+        retried = self.admit(
+            content=content, source_namespace="synthetic-window", source_key=source_key,
+        )
+        self.assertEqual(retried.reason_code, "delivery_admitted")
+
 
 class ConcurrentAdmissionTests(F1TransactionTestCase):
     def test_same_digest_admitted_concurrently_reuses_one_artifact(self):

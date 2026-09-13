@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from medicafe_v1.sources.domain import CommandError
@@ -77,3 +78,9 @@ class ParserValidationTests(F1TestCase):
             with self.assertRaises(CommandError) as expanded:
                 parse_docx(docx_bytes())
         self.assertEqual(expanded.exception.reason_code, "docx_expanded_limit_exceeded")
+
+        encrypted = SimpleNamespace(flag_bits=0x1, file_size=1)
+        with patch("medicafe_v1.sources.parsers.zipfile.ZipFile.infolist", return_value=[encrypted]):
+            with self.assertRaises(CommandError) as encrypted_error:
+                parse_docx(docx_bytes())
+        self.assertEqual(encrypted_error.exception.reason_code, "docx_encrypted")
