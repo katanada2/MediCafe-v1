@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 from django.db import IntegrityError, transaction
@@ -33,6 +34,18 @@ def admit_delivery(*, actor, organization_id, source_namespace, source_key, cont
     if media_type not in ALLOWED_MEDIA_TYPES:
         raise CommandError("media_type_unsupported")
     store = artifact_store or LocalArtifactStore()
+    digest = hashlib.sha256(content).hexdigest()
+    existing = Delivery.objects.filter(
+        organization_id=organization_id, source_namespace=namespace, source_key=key
+    ).select_related("artifact").first()
+    if existing:
+        if existing.artifact.sha256 != digest:
+            raise CommandError("delivery_source_conflict")
+        store.read_verified(existing.artifact)
+        return CommandResult("delivery_replayed", delivery_id=existing.id)
+    if supersedes_id and not Delivery.objects.filter(
+            organization_id=organization_id, id=supersedes_id).exists():
+        raise CommandError("supersedes_not_found")
     digest, storage_key = store.put(organization_id, content)
 
     with transaction.atomic():
@@ -93,10 +106,10 @@ def parse_delivery(*, actor, organization_id, delivery_id, parser_version=PARSER
     except Delivery.DoesNotExist as exc:
         raise CommandError("delivery_not_found") from exc
     existing = ParseResult.objects.filter(delivery=delivery, parser_version=parser_version).first()
-    if existing:
-        return CommandResult("parse_replayed", delivery_id=delivery.id, parse_result_id=existing.id)
     try:
         content = store.read_verified(delivery.artifact)
+        if existing:
+            return CommandResult("parse_replayed", delivery_id=delivery.id, parse_result_id=existing.id)
         parsed_rows = parse(content, delivery.artifact.media_type)
         failure = None
     except CommandError as exc:

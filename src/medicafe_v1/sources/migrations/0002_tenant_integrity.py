@@ -28,15 +28,15 @@ BEGIN
   RAISE EXCEPTION 'immutable F1 row: %', TG_TABLE_NAME USING ERRCODE = '55000';
 END;
 $$;
-CREATE TRIGGER sources_artifact_immutable BEFORE UPDATE ON sources_artifact
+CREATE TRIGGER sources_artifact_immutable BEFORE UPDATE OR DELETE ON sources_artifact
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
-CREATE TRIGGER sources_delivery_immutable BEFORE UPDATE ON sources_delivery
+CREATE TRIGGER sources_delivery_immutable BEFORE UPDATE OR DELETE ON sources_delivery
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
-CREATE TRIGGER sources_result_immutable BEFORE UPDATE ON sources_parseresult
+CREATE TRIGGER sources_result_immutable BEFORE UPDATE OR DELETE ON sources_parseresult
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
-CREATE TRIGGER sources_attempt_immutable BEFORE UPDATE ON sources_parseattempt
+CREATE TRIGGER sources_attempt_immutable BEFORE UPDATE OR DELETE ON sources_parseattempt
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
-CREATE TRIGGER sources_observation_immutable BEFORE UPDATE ON sources_observation
+CREATE TRIGGER sources_observation_immutable BEFORE UPDATE OR DELETE ON sources_observation
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
 """
 

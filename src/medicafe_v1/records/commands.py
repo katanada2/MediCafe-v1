@@ -6,6 +6,7 @@ from datetime import date
 from django.db import IntegrityError, transaction
 
 from medicafe_v1.access.services import require_active_membership
+from medicafe_v1.sources.artifacts import LocalArtifactStore
 from medicafe_v1.sources.domain import CommandError, CommandResult
 from medicafe_v1.sources.models import Observation
 
@@ -36,7 +37,7 @@ def _result(decision, reason_code):
     )
 
 
-def resolve_identity(*, actor, organization_id, observation_id, request_uuid, intent):
+def resolve_identity(*, actor, organization_id, observation_id, request_uuid, intent, artifact_store=None):
     require_active_membership(actor=actor, organization_id=organization_id)
     input_digest = intent.digest()
     with transaction.atomic():
@@ -49,11 +50,16 @@ def resolve_identity(*, actor, organization_id, observation_id, request_uuid, in
                 raise CommandError("request_input_conflict")
             return _result(prior_request, "resolution_replayed")
         try:
-            observation = Observation.objects.select_for_update().get(
+            observation = Observation.objects.select_for_update().select_related(
+                "parse_result__delivery__artifact"
+            ).get(
                 organization_id=organization_id, id=observation_id
             )
         except Observation.DoesNotExist as exc:
             raise CommandError("observation_not_found") from exc
+        (artifact_store or LocalArtifactStore()).read_verified(
+            observation.parse_result.delivery.artifact
+        )
         # A concurrent identical request may have committed while this caller waited for the observation lock.
         prior_request = IdentityDecision.objects.filter(
             organization_id=organization_id, request_uuid=request_uuid

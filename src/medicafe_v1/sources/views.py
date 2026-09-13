@@ -9,6 +9,7 @@ from medicafe_v1.records.commands import ResolutionIntent, resolve_identity
 from medicafe_v1.records.models import Encounter, IdentityDecision
 from medicafe_v1.records.queries import exact_alias_suggestion
 
+from .artifacts import LocalArtifactStore
 from .commands import admit_delivery, parse_delivery
 from .domain import CommandError
 from .forms import ResolutionForm, UploadForm
@@ -44,6 +45,12 @@ def worklist(request, organization_id):
         delivery.latest_requested_attempt = ParseAttempt.objects.filter(
             organization_id=organization_id, delivery=delivery, parser_version=PARSER_VERSION
         ).order_by("-ended_at").first()
+        try:
+            LocalArtifactStore().read_verified(delivery.artifact)
+            delivery.artifact_available = True
+        except CommandError as exc:
+            delivery.artifact_available = False
+            delivery.artifact_reason = exc.reason_code
     unresolved = _deny_on_authorization(lambda: scoped_observations(
         actor=request.user, organization_id=organization_id, unresolved_only=True
     ))
@@ -89,9 +96,14 @@ def delivery_detail(request, organization_id, delivery_id):
     ))
     results = ParseResult.objects.filter(organization_id=organization_id, delivery=delivery)
     attempts = ParseAttempt.objects.filter(organization_id=organization_id, delivery=delivery).order_by("-ended_at")
+    try:
+        LocalArtifactStore().read_verified(delivery.artifact)
+        artifact_reason = "artifact_verified"
+    except CommandError as exc:
+        artifact_reason = exc.reason_code
     return render(request, "sources/delivery_detail.html", {
         "organization_id": organization_id, "delivery": delivery, "observations": observations,
-        "results": results, "attempts": attempts,
+        "results": results, "attempts": attempts, "artifact_reason": artifact_reason,
     })
 
 

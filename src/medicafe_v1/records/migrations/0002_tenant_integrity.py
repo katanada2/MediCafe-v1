@@ -21,7 +21,7 @@ ALTER TABLE records_identitydecision ADD CONSTRAINT records_decision_encounter_p
   FOREIGN KEY (organization_id, patient_id, encounter_id)
   REFERENCES records_encounter (organization_id, patient_id, id)
   DEFERRABLE INITIALLY DEFERRED;
-CREATE TRIGGER records_decision_immutable BEFORE UPDATE ON records_identitydecision
+CREATE TRIGGER records_decision_immutable BEFORE UPDATE OR DELETE ON records_identitydecision
   FOR EACH ROW EXECUTE FUNCTION medicafe_reject_update();
 """
 
@@ -39,4 +39,3 @@ ALTER TABLE records_patientalias DROP CONSTRAINT IF EXISTS records_alias_patient
 class Migration(migrations.Migration):
     dependencies = [("records", "0001_initial"), ("sources", "0002_tenant_integrity")]
     operations = [migrations.RunSQL(FORWARD_SQL, REVERSE_SQL)]
-

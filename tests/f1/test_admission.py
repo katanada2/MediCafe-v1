@@ -137,6 +137,32 @@ class AdmissionAndArtifactTests(F1TestCase):
         )
         self.assertEqual(retried.reason_code, "delivery_admitted")
 
+    def test_known_admission_rejections_do_not_promote_or_create_artifacts(self):
+        original = csv_bytes(synthetic_rows(note="SYNTHETIC_KNOWN_REJECTION_ORIGINAL"))
+        source_key = str(uuid.uuid4())
+        self.admit(content=original, source_key=source_key)
+
+        def blob_files():
+            return {path for path in Path(self._artifact_tmp.name).rglob("*") if path.is_file()}
+
+        original_files = blob_files()
+        self.assertEqual(len(original_files), 1)
+        with self.assertRaises(CommandError) as changed:
+            self.admit(
+                content=csv_bytes(synthetic_rows(note="SYNTHETIC_KNOWN_REJECTION_CHANGED")),
+                source_key=source_key,
+            )
+        self.assertEqual(changed.exception.reason_code, "delivery_source_conflict")
+        with self.assertRaises(CommandError) as supersedes:
+            self.admit(
+                content=csv_bytes(synthetic_rows(note="SYNTHETIC_INVALID_SUPERSEDES")),
+                supersedes_id=uuid.uuid4(),
+            )
+        self.assertEqual(supersedes.exception.reason_code, "supersedes_not_found")
+        self.assertEqual(blob_files(), original_files)
+        self.assertEqual(Artifact.objects.filter(organization=self.alpha).count(), 1)
+        self.assertEqual(Delivery.objects.filter(organization=self.alpha).count(), 1)
+
 
 class ConcurrentAdmissionTests(F1TransactionTestCase):
     def test_same_digest_admitted_concurrently_reuses_one_artifact(self):

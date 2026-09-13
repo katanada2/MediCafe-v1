@@ -8,7 +8,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from django.db import IntegrityError, close_old_connections, connection, transaction
+from django.db import DatabaseError, IntegrityError, close_old_connections, connection, transaction
+from django.urls import reverse
 
 from medicafe_v1.access.models import User
 from medicafe_v1.records.commands import ResolutionIntent, resolve_identity
@@ -38,6 +39,51 @@ class CompletedSurfaceTests(F1TestCase):
         self.assertNotIn(sentinel, "\n".join(captured.output))
         self.assertEqual(ParseAttempt.objects.get(delivery_id=admitted.delivery_id).reason_code, "invalid_header")
         self.assertEqual(ParseResult.objects.filter(delivery_id=admitted.delivery_id).count(), 0)
+
+    def test_historical_result_requires_current_artifact_verification_before_replay_or_resolution(self):
+        content = csv_bytes(synthetic_rows(note="SYNTHETIC_HISTORICAL_RESULT"))
+        admitted = self.admit(content=content)
+        parsed = self.parse(admitted.delivery_id)
+        delivery = self.delivery(admitted.delivery_id)
+        observation = self.first_observation(delivery.id)
+        path = self.store.root / delivery.artifact.storage_key
+        result_count = ParseResult.objects.filter(delivery=delivery).count()
+        observation_count = delivery.parseresult_set.get(pk=parsed.parse_result_id).observations.count()
+        attempt_count = ParseAttempt.objects.filter(delivery=delivery).count()
+
+        path.unlink()
+        with self.assertRaises(CommandError) as unavailable:
+            self.parse(delivery.id)
+        self.assertEqual(unavailable.exception.reason_code, "artifact_unavailable")
+        with self.assertRaises(CommandError) as blocked_resolution:
+            resolve_identity(
+                actor=self.alpha_user, organization_id=self.alpha.id, observation_id=observation.id,
+                request_uuid=uuid.uuid4(), intent=ResolutionIntent(
+                    mode="create", reason="Synthetic unavailable artifact",
+                    display_name="Synthetic Must Not Exist", service_date="2026-01-15",
+                ),
+            )
+        self.assertEqual(blocked_resolution.exception.reason_code, "artifact_unavailable")
+        self.assertEqual(IdentityDecision.objects.filter(observation=observation).count(), 0)
+
+        self.client.force_login(self.alpha_user)
+        detail = self.client.get(reverse("delivery_detail", kwargs={
+            "organization_id": self.alpha.id, "delivery_id": delivery.id,
+        }))
+        self.assertContains(detail, "artifact_unavailable")
+        self.assertContains(detail, "historical results remain retained")
+        worklist = self.client.get(reverse("worklist", kwargs={"organization_id": self.alpha.id}))
+        self.assertContains(worklist, "historical f1-v1 result retained")
+        self.assertContains(worklist, "artifact_unavailable")
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        replay = self.parse(delivery.id)
+        self.assertEqual(replay.reason_code, "parse_replayed")
+        self.assertEqual(replay.parse_result_id, parsed.parse_result_id)
+        self.assertEqual(ParseResult.objects.filter(delivery=delivery).count(), result_count)
+        self.assertEqual(delivery.parseresult_set.get(pk=parsed.parse_result_id).observations.count(), observation_count)
+        self.assertEqual(ParseAttempt.objects.filter(delivery=delivery).count(), attempt_count + 1)
 
 
 class ResolutionConcurrencyAndDurabilityTests(F1TransactionTestCase):
@@ -149,3 +195,24 @@ class ResolutionConcurrencyAndDurabilityTests(F1TransactionTestCase):
                     reason="Synthetic invalid direct relationship", request_uuid=uuid.uuid4(),
                     input_digest="0" * 64,
                 )
+
+    def test_immutable_decision_attempt_and_observation_reject_direct_delete(self):
+        observation = self._observation()
+        decision = resolve_identity(
+            actor=self.alpha_user, organization_id=self.alpha.id, observation_id=observation.id,
+            request_uuid=uuid.uuid4(), intent=ResolutionIntent(
+                mode="create", reason="Synthetic immutable decision",
+                display_name="Synthetic Immutable Patient", service_date="2026-01-15",
+            ),
+        )
+        attempt = ParseAttempt.objects.get(delivery=observation.parse_result.delivery)
+        unreferenced_observation = self._observation()
+        for model, object_id in (
+            (IdentityDecision, decision.decision_id),
+            (ParseAttempt, attempt.id),
+            (type(unreferenced_observation), unreferenced_observation.id),
+        ):
+            with self.assertRaises(DatabaseError):
+                with transaction.atomic():
+                    model.objects.get(pk=object_id).delete()
+            self.assertTrue(model.objects.filter(pk=object_id).exists())
