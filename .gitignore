@@ -5,6 +5,7 @@ Thumbs.db
 *.swo
 
 # Local Python environments and caches
+.bootstrap-uv/
 .venv/
 venv/
 env/
@@ -41,6 +42,7 @@ support-bundles/
 migration-evidence/
 
 # Local databases, logs, and generated outputs
+.artifacts/
 *.db
 *.sqlite
 *.sqlite3

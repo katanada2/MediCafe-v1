@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>MediCafe V1 synthetic foundation</title></head>
+<body>
+<header><strong> SYNTHETIC FOUNDATION — NOT FOR REAL PATIENT DATA </strong>{% if user.is_authenticated %}<form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button>Log out</button></form>{% endif %}</header>
+{% for message in messages %}<p role="status">{{ message }}</p>{% endfor %}
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>
+
