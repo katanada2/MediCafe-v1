@@ -1,10 +1,12 @@
 # MediCafe V1
 
+The first admitted runtime milestone is the synthetic F1 intake and identity-review foundation. See the [F1 setup and walkthrough](docs/roadmap/F1_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
+
 MediCafe V1 is the public planning home for a cloud-authoritative medical billing application. It is intended to become a clean, open-source application core under the `katanada2` owner while the private MediCafe repository remains the historical proving ground for workflows and operational evidence.
 
 ## Current status
 
-This repository is in architecture and foundation planning. It contains no application runtime, deployment configuration, or production readiness claim. Public examples and future fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
+This repository contains the accepted architecture and a draft synthetic F1 application foundation under review. It contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
 
 The V1 plan is the source for the proposed product shape, authority model, repository boundary, roadmap, and multi-agent working model:
 
