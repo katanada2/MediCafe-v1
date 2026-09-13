@@ -22,8 +22,9 @@ Use UUID primary keys and UTC timestamps. Every tenant-owned model carries organ
 | --- | --- |
 | Organization / Membership | Unique user/organization membership; active membership required on every command/query |
 | Artifact | Unique organization/SHA-256, byte length, media type and server-generated storage key; immutable bytes |
-| Delivery | Unique organization/source_namespace/source_key; artifact, admitted actor/time, optional supersedes delivery, last parse version/status/reason; no delivery revision counter |
+| Delivery | Unique organization/source_namespace/source_key; artifact, admitted actor/time, optional supersedes delivery; parse summaries derived from version-scoped records, no delivery revision counter |
 | ParseResult | Unique delivery/parser_version; complete observations only after atomic parse commit |
+| ParseAttempt | Append-only terminal attempt UUID, delivery/parser_version, start/end time, succeeded/failed and reason code; no source values in failure text |
 | Observation | Unique parse result/row ordinal; raw and normalized row values, warnings and source locator |
 | Patient / PatientAlias | Synthetic display name; alias unique organization/namespace/value, kept as string |
 | Encounter | Patient, service date, internal identity; multiple same-day encounters allowed |
@@ -49,7 +50,7 @@ Source locator records CSV data-row ordinal or DOCX table/row ordinal. Retain du
 
 Admission requires a non-empty source_namespace and source_key. For the UI, generate a UUID source_key before POST and retain it for retries. Same key/same digest returns the existing delivery; same key/different bytes is a conflict. New key/same bytes creates a separate delivery referencing the same artifact. New key/changed bytes retains a new artifact; optional supersedes records intent without changing earlier observations or accepted decisions. No lineage version is inferred; the corrected-source test asserts both deliveries survive and the optional explicit link is retained.
 
-Replay of a successful delivery/parser_version returns its ParseResult without new observations. ParseResult is success-only: a failed/incomplete parse creates neither a ParseResult nor observations. Record failed status, parser version and reason on Delivery; retry the same immutable bytes. Lock Delivery when applying a parse outcome and recheck for an existing successful result. A concurrent failure must not demote a successful result for that version. Expose failure in the worklist when no successful result exists. Changing parser version creates another result but cannot rewrite prior decisions; F1 ships one explicit parser version.
+Replay of a successful delivery/parser_version returns its ParseResult without new observations. ParseResult is success-only: a failed/incomplete parse creates neither a ParseResult nor observations. Persist every completed computation as an immutable ParseAttempt for that delivery/parser version, including failures. Retry creates a new attempt, never overwrites earlier failure evidence, and reads the same immutable bytes. Successful attempt, result and observations commit together. On parsing error, persist only the failed terminal attempt. Lock Delivery when applying an outcome and recheck for an existing successful result. A concurrent failure remains visible history but cannot demote a successful result for that version. Derive the worklist summary from requested-version results and attempts, keeping a failed newer version distinct from a usable older result. Replay returning an existing result performs no computation and adds no attempt. A killed process with no terminal commit proves no completed attempt; absence of a result remains retryable. No persistent running state or lease engine is needed for synchronous F1 parsing. Changing parser version creates another result but cannot rewrite prior decisions; F1 ships one explicit parser version.
 
 Bound uploads to 5 MiB and parsed rows to 1,000. For DOCX, also bound total declared uncompressed ZIP content to 25 MiB and reject encrypted/unsupported documents. These are synthetic foundation limits, not clinic requirements.
 
@@ -74,7 +75,7 @@ Acceptance suite on real PostgreSQL:
 5. Concurrent identical/different resolution; durable accepted decision after fresh database connection/process restart.
 6. User A cannot list/read/resolve user B's data, substitute references or supersedes targets; direct database cross-organization insert fails.
 7. Blob failure before commit, crash residue after promotion, and missing/corrupt referenced bytes.
-8. Reparse preserves accepted decisions; failure has no ParseResult or partial observations; retry produces one successful result, and concurrent failure cannot demote it.
+8. Reparse preserves accepted decisions; failure has a terminal ParseAttempt but no ParseResult or partial observations; retry retains the failure and produces one successful result. A concurrent failure cannot demote it. A test-only newer parser failure remains attributable to its version after retry, while the older successful result stays intact.
 9. Synthetic sensitive sentinel absent from captured application logs and error summaries; present only in authorized detail where appropriate.
 10. Web entrypoints invoke commands; a direct command caller cannot bypass membership or relation checks.
 

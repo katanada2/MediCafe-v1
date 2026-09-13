@@ -31,3 +31,4 @@ Astra reviewed two bounded read-only agent analyses. The synthesis corrected a p
 A future update should record the delivery task/branch and evidence status. Keep private evidence links and operational details out of this public file.
 
 Final contract review resolved delivery version ambiguity, atomic create-and-resolve retry identity, and success-only ParseResult persistence. The associated [charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1) was last verified open during review; its merge is the F1 entry gate.
+Automated PR review additionally required version-scoped failure history. F1 therefore records immutable terminal ParseAttempts while keeping ParseResults success-only; no durable running/lease subsystem is added.
