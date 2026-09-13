@@ -29,3 +29,5 @@ For an escalation, identify the conflicting card paragraph, attempted approach, 
 Astra reviewed two bounded read-only agent analyses. The synthesis corrected a proposed conflation of public code with private runtime data, kept patient/financial ownership in V1, and resolved F1 replay, organization constraints, artifact failure and operator-resolution behavior. Deferred extra queue infrastructure, automatic patient merging, and production policy inference.
 
 A future update should record the delivery task/branch and evidence status. Keep private evidence links and operational details out of this public file.
+
+Final contract review resolved delivery version ambiguity, atomic create-and-resolve retry identity, and success-only ParseResult persistence. The associated [charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1) was last verified open during review; its merge is the F1 entry gate.

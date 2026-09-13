@@ -22,24 +22,24 @@ Use UUID primary keys and UTC timestamps. Every tenant-owned model carries organ
 | --- | --- |
 | Organization / Membership | Unique user/organization membership; active membership required on every command/query |
 | Artifact | Unique organization/SHA-256, byte length, media type and server-generated storage key; immutable bytes |
-| Delivery | Unique organization/source_namespace/source_key; artifact, admitted actor/time, optional supersedes delivery, integer version |
+| Delivery | Unique organization/source_namespace/source_key; artifact, admitted actor/time, optional supersedes delivery, last parse version/status/reason; no delivery revision counter |
 | ParseResult | Unique delivery/parser_version; complete observations only after atomic parse commit |
 | Observation | Unique parse result/row ordinal; raw and normalized row values, warnings and source locator |
 | Patient / PatientAlias | Synthetic display name; alias unique organization/namespace/value, kept as string |
 | Encounter | Patient, service date, internal identity; multiple same-day encounters allowed |
-| IdentityDecision | Observation, patient, encounter, actor/time/reason; at most one accepted decision per observation in F1 |
+| IdentityDecision | Observation, patient, encounter, actor/time/reason, request UUID and canonical input digest; unique organization/request UUID and at most one accepted decision per observation in F1 |
 
 Same-organization constraints also apply to supersedes and identity-decision references. Ensure an identity decision's encounter belongs to its selected patient. Keep accepted decisions immutable in F1; reversal after acceptance is a later explicit policy, not a silent edit action.
 
 ### Commands and authorization
 
-Use application commands for admit_delivery, parse_delivery, create_patient, create_encounter and resolve_identity. They receive an authenticated actor and organization explicitly, verify active membership, and scope all lookups. Return stable reason codes with target IDs and persisted status. Domain IDs supplied by a caller never bypass admission.
+Use application commands for admit_delivery, parse_delivery and resolve_identity. resolve_identity owns the atomic attach-existing versus create-patient/create-encounter flow; creation helpers are internal to that transaction, not separately submitted UI commands. They receive an authenticated actor and organization explicitly, verify active membership, and scope all lookups. Return stable reason codes with target IDs and persisted status. Domain IDs supplied by a caller never bypass admission.
 
 Use Django session login and POST with CSRF for every mutation. No public registration or domain model writes through Django admin. A local seed_demo management command creates two synthetic organizations and users, with passwords supplied at invocation or generated locally; never commit or log a fixed password. A user belongs to only one organization in the isolation fixture.
 
 Observation detail can suggest an exact same-organization alias match. Confirming it is an explicit operator command. Missing or conflicting evidence stays unresolved; no fuzzy or name/date auto-merge. To create another legitimate encounter on the same day, the operator explicitly selects create rather than attach-existing. Source parsing never creates a patient or encounter automatically.
 
-Use a row lock/version check when resolving an observation. A repeated identical resolution is idempotent; a competing different decision returns conflict and does not create another entity. Create/resolve actions share a transaction so rejected or repeated decisions leave no stray patient/encounter.
+Lock the observation before resolving it. The form carries a request UUID generated before POST. Store that UUID and a canonical digest of the submitted resolution intent with the accepted decision. Retrying the same request and input returns the original decision and created IDs without creating anything. Reusing the request UUID with changed input is a conflict. A different request attaching the same already-accepted target returns that decision; a competing different target or fresh create intent conflicts. resolve_identity encloses all entity creation and decision persistence in one transaction, so rejected, failed or repeated resolutions leave no stray patient/encounter.
 
 ### Synthetic formats and replay
 
@@ -47,9 +47,9 @@ Both formats use the columns row_id, patient_ref, service_date, note. CSV is UTF
 
 Source locator records CSV data-row ordinal or DOCX table/row ordinal. Retain duplicate row_id values as separate observations with a warning; row_id is never global identity. Ignore no unsupported additional populated table silently.
 
-Admission requires a non-empty source_namespace and source_key. For the UI, generate a UUID source_key before POST and retain it for retries. Same key/same digest returns the existing delivery; same key/different bytes is a conflict. New key/same bytes creates a separate delivery referencing the same artifact. New key/changed bytes retains a new artifact; optional supersedes records intent without changing earlier observations or accepted decisions.
+Admission requires a non-empty source_namespace and source_key. For the UI, generate a UUID source_key before POST and retain it for retries. Same key/same digest returns the existing delivery; same key/different bytes is a conflict. New key/same bytes creates a separate delivery referencing the same artifact. New key/changed bytes retains a new artifact; optional supersedes records intent without changing earlier observations or accepted decisions. No lineage version is inferred; the corrected-source test asserts both deliveries survive and the optional explicit link is retained.
 
-Replay of a successful delivery/parser_version returns its ParseResult without new observations. A failed/incomplete parse leaves no partial accepted observation set; retry the same immutable bytes. Store parse outcome/reason on Delivery for failure and expose it in the worklist. Changing parser version creates another result but cannot rewrite prior decisions; F1 ships one explicit parser version.
+Replay of a successful delivery/parser_version returns its ParseResult without new observations. ParseResult is success-only: a failed/incomplete parse creates neither a ParseResult nor observations. Record failed status, parser version and reason on Delivery; retry the same immutable bytes. Lock Delivery when applying a parse outcome and recheck for an existing successful result. A concurrent failure must not demote a successful result for that version. Expose failure in the worklist when no successful result exists. Changing parser version creates another result but cannot rewrite prior decisions; F1 ships one explicit parser version.
 
 Bound uploads to 5 MiB and parsed rows to 1,000. For DOCX, also bound total declared uncompressed ZIP content to 25 MiB and reject encrypted/unsupported documents. These are synthetic foundation limits, not clinic requirements.
 
@@ -68,13 +68,13 @@ Implement login, organization-scoped intake worklist, upload, delivery/observati
 Acceptance suite on real PostgreSQL:
 
 1. Fresh migrations and seed setup; authenticated happy path for CSV and DOCX.
-2. Duplicate key/same bytes, duplicate key/changed bytes, new key/same bytes, corrected source and replay.
+2. Duplicate key/same bytes, duplicate key/changed bytes, new key/same bytes, corrected source and replay; concurrent same-digest admissions produce one artifact and distinct keyed deliveries.
 3. Leading-zero aliases, blank identity, invalid date, duplicate source rows, malformed DOCX and size limits.
 4. Exact alias suggestion and explicit resolution; distinct same-day encounters; no automatic entity creation.
 5. Concurrent identical/different resolution; durable accepted decision after fresh database connection/process restart.
 6. User A cannot list/read/resolve user B's data, substitute references or supersedes targets; direct database cross-organization insert fails.
 7. Blob failure before commit, crash residue after promotion, and missing/corrupt referenced bytes.
-8. Reparse preserves accepted decisions; failure has no partially committed observation set.
+8. Reparse preserves accepted decisions; failure has no ParseResult or partial observations; retry produces one successful result, and concurrent failure cannot demote it.
 9. Synthetic sensitive sentinel absent from captured application logs and error summaries; present only in authorized detail where appropriate.
 10. Web entrypoints invoke commands; a direct command caller cannot bypass membership or relation checks.
 
