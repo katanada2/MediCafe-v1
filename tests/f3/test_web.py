@@ -28,7 +28,7 @@ class DeliveryWebTests(F3TransactionTestCase):
         second = self._intent()
         client = Client()
         client.force_login(self.alpha_user)
-        url = reverse("delivery_detail", kwargs={
+        url = reverse("claim_delivery_detail", kwargs={
             "organization_id": self.alpha.id, "intent_id": first.intent_id,
         })
 
@@ -73,7 +73,7 @@ class DeliveryWebTests(F3TransactionTestCase):
         self.assertEqual(delivered.reason_code, "receiver_evidence_recorded")
         client = Client()
         client.force_login(self.alpha_user)
-        response = client.get(reverse("delivery_detail", kwargs={
+        response = client.get(reverse("claim_delivery_detail", kwargs={
             "organization_id": self.alpha.id, "intent_id": requested.intent_id,
         }))
         self.assertContains(response, "receiver_accepted")
@@ -84,7 +84,7 @@ class DeliveryWebTests(F3TransactionTestCase):
         requested = self._intent()
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.alpha_user)
-        url = reverse("delivery_detail", kwargs={
+        url = reverse("claim_delivery_detail", kwargs={
             "organization_id": self.alpha.id, "intent_id": requested.intent_id,
         })
         response = client.post(url, {

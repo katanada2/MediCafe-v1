@@ -46,7 +46,7 @@ class ReadbackAdapter:
         return self.evidence(frozen) if callable(self.evidence) else self.evidence
 
 
-def accepted_evidence(frozen, *, reported_attempt_id=None, receipt_id="stable-v1-receipt",
+def accepted_evidence(frozen, *, reported_attempt_id=None, receipt_id=None,
                       payload=None):
     received = frozen.payload if payload is None else payload
     return ReceiverEvidence(
@@ -54,7 +54,7 @@ def accepted_evidence(frozen, *, reported_attempt_id=None, receipt_id="stable-v1
         receiver_version=frozen.receiver_version,
         organization_id=frozen.organization_id, intent_id=frozen.intent_id,
         claim_revision_id=frozen.claim_revision_id, delivery_key=frozen.delivery_key,
-        receipt_id=receipt_id,
+        receipt_id=receipt_id or f"receipt-{frozen.intent_id}",
         reported_attempt_id=reported_attempt_id or frozen.attempt_id,
         envelope_digest=frozen.envelope_digest, byte_length=frozen.byte_length,
         received_bytes=received, no_acceptance_guaranteed=False,

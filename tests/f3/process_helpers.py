@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import socket
 import subprocess
 import sys
@@ -115,6 +116,8 @@ class ReceiverProcess:
         env["MEDICAFE_SYNTHETIC_RECEIVER_V1_URL"] = self.endpoints["v1"]
         env["MEDICAFE_SYNTHETIC_RECEIVER_V2_URL"] = self.endpoints["v2"]
         env["MEDICAFE_SYNTHETIC_RECEIVER_TIMEOUT"] = "1.0"
+        env["PYTHONPATH"] = str(Path(settings.BASE_DIR) / "src")
+        env["DJANGO_SETTINGS_MODULE"] = "medicafe_v1.settings"
         return env
 
     def run_worker(self):
@@ -125,3 +128,22 @@ class ReceiverProcess:
             cwd=settings.BASE_DIR, env=self.worker_environment(),
             capture_output=True, text=True, timeout=15, check=False,
         )
+
+    def run_test_worker(self, *, test_mode):
+        return subprocess.run(
+            [sys.executable, "-m", "tests.f3.worker_process",
+             "--worker-id", f"process-test-{uuid.uuid4()}",
+             "--lease-seconds", "5", "--test-mode", test_mode],
+            cwd=settings.BASE_DIR, env=self.worker_environment(),
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+
+    def query_state(self, intent_id):
+        result = subprocess.run(
+            [sys.executable, "-m", "tests.f3.state_process", str(intent_id)],
+            cwd=settings.BASE_DIR, env=self.worker_environment(),
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr)
+        return json.loads(result.stdout.strip())

@@ -3,10 +3,12 @@ from __future__ import annotations
 import uuid
 
 import psycopg
+from django.test import Client
 from django.test import override_settings
+from django.urls import reverse
 from psycopg import sql
 
-from medicafe_v1.claims.delivery_commands import request_delivery
+from medicafe_v1.claims.delivery_commands import reconcile_delivery, request_delivery
 from medicafe_v1.claims.delivery_adapter import FrozenDelivery, LoopbackReceiverAdapter, RECEIVER_ID
 from medicafe_v1.claims.models import ReceiverObservation
 from tests.helpers.workflow_boundary_contract import assert_delivery_boundary
@@ -80,3 +82,50 @@ class ProcessDeliveryTests(F3TransactionTestCase):
                 self.assertEqual(evidence.reported_attempt_id, str(original.reported_attempt_id))
                 self.assertEqual(evidence.delivery_key, str(requested.intent_id))
                 self.assertEqual(evidence.received_bytes, bytes(revision.envelope_bytes))
+
+
+class ReceiverOutageTests(F3TransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.receiver = ReceiverProcess()
+
+    def tearDown(self):
+        self.receiver.stop()
+        self.receiver.drop_schema()
+        super().tearDown()
+
+    def test_receiver_outage_has_no_false_completion_resend_or_route_fallback(self):
+        claim, revision, _ = self.approved_claim(route_version="v2")
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+
+        unavailable = self.receiver.run_worker()
+
+        self.assertEqual(unavailable.returncode, 0, unavailable.stderr)
+        self.assertIn("dispatch_outcome_unknown", unavailable.stdout)
+        client = Client()
+        client.force_login(self.alpha_user)
+        claim_page = client.get(reverse("claim_detail", kwargs={
+            "organization_id": self.alpha.id, "claim_id": claim.id,
+        }))
+        self.assertEqual(claim_page.status_code, 200)
+        self.assertContains(claim_page, "Synthetic only")
+
+        self.receiver.start()
+        with override_settings(SYNTHETIC_RECEIVER_ENDPOINTS=self.receiver.endpoints):
+            reconciled = reconcile_delivery(
+                actor=self.alpha_user, organization_id=self.alpha.id,
+                intent_id=requested.intent_id,
+            )
+        self.assertEqual(reconciled.reason_code, "receiver_not_observed")
+        self.assertEqual(reconciled.current_status, "uncertain")
+        no_work = self.receiver.run_worker()
+        self.assertIn("no_delivery_work", no_work.stdout)
+        with psycopg.connect(**postgres_kwargs()) as conn, conn.cursor() as cursor:
+            cursor.execute(sql.SQL("SELECT count(*) FROM {}.accepted_receipt").format(
+                sql.Identifier(self.receiver.schema)
+            ))
+            self.assertEqual(cursor.fetchone()[0], 0)

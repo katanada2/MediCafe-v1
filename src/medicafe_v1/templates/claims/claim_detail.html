@@ -8,8 +8,8 @@
 <form method="post">{% csrf_token %}{{ form.as_p }}<button type="submit" name="action" value="approve">Approve exact current revision</button></form>
 <h2>Synthetic receiver delivery</h2>
 {% if delivery_form.errors %}<form method="post">{% csrf_token %}{{ delivery_form.as_p }}<button type="submit" name="action" value="request_delivery">Correct delivery request</button></form>
-{% elif delivery %}<p><a href="{% url 'delivery_detail' organization_id=organization_id intent_id=delivery.id %}">View durable delivery status</a>.</p>
-{% elif case_delivery %}<p>A prior revision still occupies this claim's delivery slot. <a href="{% url 'delivery_detail' organization_id=organization_id intent_id=case_delivery.id %}">Review its evidence and permitted actions</a>.</p>
+{% elif delivery %}<p><a href="{% url 'claim_delivery_detail' organization_id=organization_id intent_id=delivery.id %}">View durable delivery status</a>.</p>
+{% elif case_delivery %}<p>A prior revision still occupies this claim's delivery slot. <a href="{% url 'claim_delivery_detail' organization_id=organization_id intent_id=case_delivery.id %}">Review its evidence and permitted actions</a>.</p>
 {% elif not actionability.blockers %}<form method="post">{% csrf_token %}{{ delivery_form.as_p }}<button type="submit" name="action" value="request_delivery">Request delivery of exact approved bytes</button></form>
 {% else %}<p>Delivery is blocked until this exact revision is currently approved.</p>{% endif %}
 <h2>Historical revisions</h2><ul>{% for item in claim.revisions.all %}<li>Revision {{ item.revision_number }} — {% if item.approvals.all %}approved historically{% else %}unapproved{% endif %}</li>{% endfor %}</ul>

@@ -213,7 +213,7 @@ def claim_review(request, organization_id, claim_id):
         else:
             messages.success(request, result.reason_code)
             return redirect(
-                "delivery_detail", organization_id=organization_id,
+                "claim_delivery_detail", organization_id=organization_id,
                 intent_id=result.intent_id,
             )
     elif request.method == "POST" and form.is_valid():
@@ -319,7 +319,7 @@ def delivery_review(request, organization_id, intent_id):
         if result is not None:
             messages.success(request, result.reason_code)
             return redirect(
-                "delivery_detail", organization_id=organization_id, intent_id=intent_id
+                "claim_delivery_detail", organization_id=organization_id, intent_id=intent_id
             )
     return render(request, "claims/delivery_detail.html", {
         "organization_id": organization_id, "detail": detail,

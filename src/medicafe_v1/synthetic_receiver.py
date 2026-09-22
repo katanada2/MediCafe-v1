@@ -222,14 +222,16 @@ class ReceiverHandler(BaseHTTPRequestHandler):
             with self._connection() as conn, conn.cursor() as cursor:
                 cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (metadata["attempt_id"],))
                 cursor.execute(sql.SQL("""
-                    SELECT 1 FROM {}.accepted_receipt
+                    SELECT receipt_id FROM {}.accepted_receipt
                     WHERE receiver_id=%s AND receiver_version=%s
-                      AND organization_id=%s AND attempt_id=%s
+                      AND organization_id=%s
+                      AND (attempt_id=%s OR (receiver_version='v1' AND delivery_key=%s))
                 """).format(sql.Identifier(self.schema)), (
-                    RECEIVER_ID, version, metadata["organization_id"], metadata["attempt_id"],
+                    RECEIVER_ID, version, metadata["organization_id"],
+                    metadata["attempt_id"], metadata["delivery_key"],
                 ))
                 if cursor.fetchone():
-                    self._respond(409, {"status": "unknown"})
+                    self._respond(202, {"status": "accepted"})
                     return
                 cursor.execute(sql.SQL("""
                     INSERT INTO {}.rejected_invocation

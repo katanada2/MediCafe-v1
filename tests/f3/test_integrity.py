@@ -63,6 +63,44 @@ class DispatchFenceSQLTests(F3TransactionTestCase):
             self._insert_attempt(self._attempt_values(generation=2))
         self.assertFalse(DeliveryAttempt.objects.exists())
 
+    def test_direct_same_generation_lease_owner_replacement_fails(self):
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            DeliveryWork.objects.filter(pk=self.work.pk).update(
+                lease_owner="replacement-worker",
+            )
+        self.work.refresh_from_db()
+        self.assertEqual(self.work.lease_owner, "sql-worker")
+
+    def test_direct_same_generation_lease_extension_fails(self):
+        original_expiry = self.work.lease_expires_at
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            DeliveryWork.objects.filter(pk=self.work.pk).update(
+                lease_expires_at=original_expiry + timedelta(minutes=5),
+            )
+        self.work.refresh_from_db()
+        self.assertEqual(self.work.lease_expires_at, original_expiry)
+
+    def test_direct_coalescing_receipt_cannot_replace_authorization(self):
+        coalesced = ClaimsCommandReceipt.objects.create(
+            organization=self.alpha, request_uuid=uuid.uuid4(),
+            command_kind="request_delivery", target_key=str(self.revision.id),
+            intent_digest="c" * 64, result_claim_id=self.revision.claim_id,
+            result_revision=self.revision,
+            result_approval=self.intent.claim_approval,
+            result_delivery_intent=self.intent, result_delivery_work=self.work,
+            result_code="delivery_coalesced", accepted_by=self.alpha_user,
+        )
+        DeliveryWork.objects.filter(pk=self.work.pk).update(
+            state=DeliveryWork.STATE_FINISHED, lease_owner="", lease_expires_at=None,
+        )
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            DeliveryWork.objects.filter(pk=self.work.pk).update(
+                state=DeliveryWork.STATE_PENDING,
+                scheduled_authorization_receipt=coalesced,
+            )
+        self.work.refresh_from_db()
+        self.assertNotEqual(self.work.scheduled_authorization_receipt_id, coalesced.id)
+
     def test_direct_authorizer_substitution_fails_named_attempt_guard(self):
         with self.assertRaises(DatabaseError), transaction.atomic():
             values = list(self._attempt_values())
