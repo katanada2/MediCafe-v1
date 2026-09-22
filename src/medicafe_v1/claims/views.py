@@ -16,7 +16,12 @@ from .forms import (
     ServiceRevisionForm,
 )
 from .models import SyntheticPolicySelection
-from .queries import claim_actionability, claim_detail, claim_for_encounter
+from .queries import (
+    claim_actionability,
+    claim_detail,
+    claim_for_encounter,
+    claim_revision_for_claim,
+)
 
 
 def _decisions(actor, organization_id, encounter_id):
@@ -87,6 +92,7 @@ def service_review(request, organization_id, service_id):
     form = ServiceRevisionForm(
         request.POST or None, decision_choices=_decision_choices(decisions), initial={
             "expected_revision_id": current.id, "disposition": current.disposition,
+            "identity_decision_id": current.identity_decision_id,
             "code": current.code, "units": current.units, "unit_amount": current.unit_amount,
             "currency": current.currency,
         },
@@ -175,10 +181,16 @@ def claim_review(request, organization_id, claim_id):
     })
     if request.method == "POST" and form.is_valid():
         try:
+            submitted_revision = claim_revision_for_claim(
+                actor=request.user,
+                organization_id=organization_id,
+                claim_id=claim.id,
+                claim_revision_id=form.cleaned_data["claim_revision_id"],
+            )
             result = approve_claim_revision(
                 actor=request.user, organization_id=organization_id,
                 request_id=form.cleaned_data["request_uuid"],
-                claim_revision_id=form.cleaned_data["claim_revision_id"],
+                claim_revision_id=submitted_revision.id,
                 expected_envelope_digest=form.cleaned_data["expected_envelope_digest"],
             )
         except (CommandError, AuthorizationError) as exc:

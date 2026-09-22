@@ -161,6 +161,19 @@ def claim_detail(*, actor, organization_id, claim_id):
         raise CommandError("claim_not_found") from exc
 
 
+def claim_revision_for_claim(*, actor, organization_id, claim_id, claim_revision_id):
+    """Resolve the exact submitted revision while binding it to the presented claim."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    try:
+        return ClaimRevision.objects.get(
+            organization_id=organization_id,
+            claim_id=claim_id,
+            id=claim_revision_id,
+        )
+    except (ClaimRevision.DoesNotExist, ValueError) as exc:
+        raise CommandError("claim_revision_not_for_claim") from exc
+
+
 def claim_for_encounter(*, actor, organization_id, encounter_id):
     require_active_membership(actor=actor, organization_id=organization_id)
     return Claim.objects.select_related("current_revision").filter(

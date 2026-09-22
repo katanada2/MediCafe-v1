@@ -6,17 +6,19 @@ from decimal import Decimal
 from django.db import DatabaseError, IntegrityError, connection, transaction
 
 from medicafe_v1.claims.commands import (
+    approve_claim_revision,
     prepare_claim_revision,
     select_synthetic_policy,
 )
 from medicafe_v1.claims.models import (
+    Claim,
     ClaimApproval,
     ClaimLine,
     ClaimRevision,
     ClaimsCommandReceipt,
 )
 from medicafe_v1.records.commands import revise_service
-from medicafe_v1.records.models import ServiceRevision
+from medicafe_v1.records.models import Service, ServiceRevision
 
 from tests.f2.base import F2TransactionTestCase
 
@@ -44,6 +46,194 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
             reason="Synthetic integrity claim",
         )
         return delivery, observation, resolved, service, ClaimRevision.objects.get(pk=claim.revision_id)
+
+    def _candidate_revision(self, predecessor):
+        return ClaimRevision.objects.create(
+            organization_id=predecessor.organization_id,
+            claim_id=predecessor.claim_id,
+            encounter_id=predecessor.encounter_id,
+            patient_id=predecessor.patient_id,
+            revision_number=predecessor.revision_number + 1,
+            predecessor=predecessor,
+            prepared_by=self.alpha_user,
+            reason="Synthetic relationship candidate",
+            policy_version=predecessor.policy_version,
+            policy_generation=predecessor.policy_generation,
+            route_id=predecessor.route_id,
+            route_version=predecessor.route_version,
+            envelope_format_version=predecessor.envelope_format_version,
+            envelope_bytes=b"{}",
+            envelope_digest="0" * 64,
+            total_amount=Decimal("0.00"),
+            currency="USD",
+        )
+
+    def test_cross_row_identity_and_head_guards_reject_mismatched_f2_rows(self):
+        _delivery_a, _observation_a, resolved_a, service_a, claim_a = self._claim_fixture(
+            note="SYNTHETIC_F2_RELATION_A"
+        )
+        _delivery_b, _observation_b, resolved_b, service_b, claim_b = self._claim_fixture(
+            note="SYNTHETIC_F2_RELATION_B"
+        )
+
+        wrong_patient, _wrong_patient_encounter = self.create_patient_encounter(
+            display_name="Synthetic wrong claim patient"
+        )
+        _right_patient, unclaimed_encounter = self.create_patient_encounter(
+            display_name="Synthetic unclaimed encounter patient",
+            service_date="2026-01-16",
+        )
+        with self.assertRaisesMessage(IntegrityError, "claims_case_encounter_patient_fk"):
+            with transaction.atomic():
+                Claim.objects.create(
+                    organization=self.alpha,
+                    encounter=unclaimed_encounter,
+                    patient=wrong_patient,
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute("SET CONSTRAINTS claims_case_encounter_patient_fk IMMEDIATE")
+
+        service_a_row = Service.objects.get(pk=service_a.service_id)
+        claim_a_row = Claim.objects.get(pk=claim_a.claim_id)
+        head_cases = (
+            (
+                "service",
+                "UPDATE records_service SET current_revision_id = %s WHERE id = %s",
+                [str(service_b.revision_id), str(service_a_row.id)],
+                "service head target invalid",
+            ),
+            (
+                "claim",
+                "UPDATE claims_claim SET current_revision_id = %s WHERE id = %s",
+                [str(claim_b.id), str(claim_a_row.id)],
+                "claim head target invalid",
+            ),
+        )
+        for label, statement, parameters, expected_error in head_cases:
+            with self.subTest(head=label):
+                with self.assertRaisesMessage(DatabaseError, expected_error):
+                    with transaction.atomic():
+                        with connection.cursor() as cursor:
+                            cursor.execute(statement, parameters)
+
+        with self.assertRaisesMessage(IntegrityError, "claims_approval_revision_digest_fk"):
+            with transaction.atomic():
+                ClaimApproval.objects.create(
+                    organization=self.beta,
+                    claim_revision=claim_a,
+                    envelope_digest=claim_a.envelope_digest,
+                    approved_by=self.beta_user,
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute("SET CONSTRAINTS claims_approval_revision_digest_fk IMMEDIATE")
+
+        with self.assertRaisesMessage(IntegrityError, "claims_rev_case_target_fk"):
+            with transaction.atomic():
+                ClaimRevision.objects.create(
+                    organization=self.alpha,
+                    claim_id=claim_a.claim_id,
+                    encounter_id=resolved_b.encounter_id,
+                    patient_id=resolved_b.patient_id,
+                    revision_number=2,
+                    predecessor=claim_a,
+                    prepared_by=self.alpha_user,
+                    reason="Synthetic mismatched successor identity",
+                    policy_version=claim_a.policy_version,
+                    policy_generation=claim_a.policy_generation,
+                    route_id=claim_a.route_id,
+                    route_version=claim_a.route_version,
+                    envelope_format_version=claim_a.envelope_format_version,
+                    envelope_bytes=b"{}",
+                    envelope_digest="0" * 64,
+                    total_amount=Decimal("0.00"),
+                    currency="USD",
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute("SET CONSTRAINTS claims_rev_case_target_fk IMMEDIATE")
+
+    def test_claim_lines_can_only_be_inserted_during_revision_construction(self):
+        _delivery, observation, resolved, service, first_revision = self._claim_fixture(
+            note="SYNTHETIC_F2_LINE_SEAL"
+        )
+        extra_service = self.accepted_service(
+            resolved,
+            observation,
+            code="SYN-B",
+            units=1,
+            unit_amount="2.00",
+            reason="Synthetic line sealing probe",
+        )
+
+        def append_to(revision):
+            ClaimLine.objects.create(
+                organization=self.alpha,
+                claim_revision=revision,
+                claim_id=revision.claim_id,
+                service_id=extra_service.service_id,
+                service_revision_id=extra_service.revision_id,
+                encounter_id=revision.encounter_id,
+                patient_id=revision.patient_id,
+                ordinal=2,
+                code="SYN-B",
+                units=1,
+                unit_amount=Decimal("2.00"),
+                line_amount=Decimal("2.00"),
+                currency="USD",
+            )
+
+        with self.subTest(state="current"):
+            with self.assertRaisesMessage(
+                DatabaseError, "claim lines may only be inserted while revision is under construction"
+            ):
+                with transaction.atomic():
+                    append_to(first_revision)
+
+        approve_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            claim_revision_id=first_revision.id,
+            expected_envelope_digest=first_revision.envelope_digest,
+        )
+        with self.subTest(state="approved"):
+            with self.assertRaisesMessage(
+                DatabaseError, "claim lines may only be inserted while revision is under construction"
+            ):
+                with transaction.atomic():
+                    append_to(first_revision)
+
+        revised_service = revise_service(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            service_id=service.service_id,
+            expected_revision_id=service.revision_id,
+            evidence_observation_id=observation.id,
+            disposition="accepted",
+            code="SYN-A",
+            units=1,
+            unit_amount="5.00",
+            currency="USD",
+            reason="Synthetic successor claim input",
+            artifact_store=self.store,
+        )
+        prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=first_revision.id,
+            selected_service_revision_ids=[revised_service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic successor claim",
+        )
+        with self.subTest(state="historical"):
+            with self.assertRaisesMessage(
+                DatabaseError, "claim lines may only be inserted while revision is under construction"
+            ):
+                with transaction.atomic():
+                    append_to(first_revision)
 
     def test_receipts_bind_consistent_results_and_enforce_command_shapes(self):
         _delivery_a, _observation_a, _resolved_a, _service_a, claim_a = self._claim_fixture(
@@ -291,21 +481,24 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
         service_b_revision = service_b
         with self.assertRaisesMessage(IntegrityError, "claims_line_service_target_fk"):
             with transaction.atomic():
+                candidate_a = self._candidate_revision(claim_a)
                 ClaimLine.objects.create(
                     organization=self.alpha,
-                    claim_revision=claim_a,
+                    claim_revision=candidate_a,
                     claim_id=claim_a.claim_id,
                     service_id=service_b.service_id,
                     service_revision_id=service_b_revision.revision_id,
                     encounter_id=claim_a.encounter_id,
                     patient_id=claim_a.patient_id,
-                    ordinal=2,
+                    ordinal=1,
                     code="SYN-A",
                     units=1,
                     unit_amount=Decimal("6.00"),
                     line_amount=Decimal("6.00"),
                     currency="USD",
                 )
+                with connection.cursor() as cursor:
+                    cursor.execute("SET CONSTRAINTS claims_line_service_target_fk IMMEDIATE")
 
         other_same_encounter = self.accepted_service(
             resolved_b,
@@ -317,18 +510,21 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
         )
         with self.assertRaisesMessage(IntegrityError, "claims_line_srev_target_fk"):
             with transaction.atomic():
+                candidate_b = self._candidate_revision(claim_b)
                 ClaimLine.objects.create(
                     organization=self.alpha,
-                    claim_revision=claim_b,
+                    claim_revision=candidate_b,
                     claim_id=claim_b.claim_id,
                     service_id=other_same_encounter.service_id,
                     service_revision_id=service_b.revision_id,
                     encounter_id=claim_b.encounter_id,
                     patient_id=claim_b.patient_id,
-                    ordinal=2,
+                    ordinal=1,
                     code="SYN-A",
                     units=1,
                     unit_amount=Decimal("6.00"),
                     line_amount=Decimal("6.00"),
                     currency="USD",
                 )
+                with connection.cursor() as cursor:
+                    cursor.execute("SET CONSTRAINTS claims_line_srev_target_fk IMMEDIATE")

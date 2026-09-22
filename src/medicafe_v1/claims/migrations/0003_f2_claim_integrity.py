@@ -99,6 +99,28 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION claims_f2_line_insert_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE current_head uuid; candidate_predecessor uuid;
+BEGIN
+  SELECT current_revision_id INTO current_head FROM claims_claim
+    WHERE organization_id=NEW.organization_id AND id=NEW.claim_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'claim line case target invalid' USING ERRCODE='23503';
+  END IF;
+  SELECT predecessor_id INTO candidate_predecessor FROM claims_claimrevision
+    WHERE id=NEW.claim_revision_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'claim line revision target invalid' USING ERRCODE='23503';
+  END IF;
+  IF NEW.claim_revision_id IS NOT DISTINCT FROM current_head
+     OR candidate_predecessor IS DISTINCT FROM current_head THEN
+    RAISE EXCEPTION 'claim lines may only be inserted while revision is under construction'
+      USING ERRCODE='55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION claims_f2_revision_sequence_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE predecessor_number integer;
 BEGIN
@@ -187,6 +209,7 @@ $$;
 
 CREATE TRIGGER claims_rev_sequence BEFORE INSERT ON claims_claimrevision FOR EACH ROW EXECUTE FUNCTION claims_f2_revision_sequence_guard();
 CREATE TRIGGER claims_rev_immutable BEFORE UPDATE OR DELETE ON claims_claimrevision FOR EACH ROW EXECUTE FUNCTION claims_f2_reject_history_change();
+CREATE TRIGGER claims_line_insert_guard BEFORE INSERT ON claims_claimline FOR EACH ROW EXECUTE FUNCTION claims_f2_line_insert_guard();
 CREATE TRIGGER claims_line_immutable BEFORE UPDATE OR DELETE ON claims_claimline FOR EACH ROW EXECUTE FUNCTION claims_f2_reject_history_change();
 CREATE TRIGGER claims_approval_immutable BEFORE UPDATE OR DELETE ON claims_claimapproval FOR EACH ROW EXECUTE FUNCTION claims_f2_reject_history_change();
 CREATE TRIGGER claims_receipt_immutable BEFORE UPDATE OR DELETE ON claims_claimscommandreceipt FOR EACH ROW EXECUTE FUNCTION claims_f2_reject_history_change();
@@ -206,6 +229,7 @@ DROP TRIGGER IF EXISTS claims_case_guard ON claims_claim;
 DROP TRIGGER IF EXISTS claims_receipt_immutable ON claims_claimscommandreceipt;
 DROP TRIGGER IF EXISTS claims_approval_immutable ON claims_claimapproval;
 DROP TRIGGER IF EXISTS claims_line_immutable ON claims_claimline;
+DROP TRIGGER IF EXISTS claims_line_insert_guard ON claims_claimline;
 DROP TRIGGER IF EXISTS claims_rev_immutable ON claims_claimrevision;
 DROP TRIGGER IF EXISTS claims_rev_sequence ON claims_claimrevision;
 DROP FUNCTION IF EXISTS claims_f2_policy_guard();
@@ -214,6 +238,7 @@ DROP FUNCTION IF EXISTS claims_f2_case_head_required();
 DROP FUNCTION IF EXISTS claims_f2_case_guard();
 DROP FUNCTION IF EXISTS claims_f2_revision_sequence_guard();
 DROP FUNCTION IF EXISTS claims_f2_reject_history_change();
+DROP FUNCTION IF EXISTS claims_f2_line_insert_guard();
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_digest_ck;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_result_shape_ck;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_kind_ck;

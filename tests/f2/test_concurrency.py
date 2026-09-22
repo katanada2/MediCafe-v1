@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from django.db import close_old_connections
 
-from medicafe_v1.access.models import User
+from medicafe_v1.access.models import Membership, User
 from medicafe_v1.claims.commands import (
     approve_claim_revision,
     prepare_claim_revision,
@@ -120,6 +120,55 @@ class F2ConcurrencyTests(F2TransactionTestCase):
         self.assertEqual(ServiceRevision.objects.filter(predecessor_id=service.revision_id).count(), 1)
         self.assertEqual(RecordsCommandReceipt.objects.filter(
             organization=self.alpha, request_uuid=request_id
+        ).count(), 1)
+
+    def test_same_request_across_members_and_encounters_converges_without_integrity_error(self):
+        other_user = User.objects.create_user(
+            username=f"synthetic-concurrent-member-{uuid.uuid4().hex[:8]}",
+            password="synthetic-test-password",
+        )
+        Membership.objects.create(organization=self.alpha, user=other_user)
+        observation_a, _resolved_a, service_a = self._fixture(
+            "SYNTHETIC_F2_CROSS_MEMBER_REQUEST_A"
+        )
+        observation_b, _resolved_b, service_b = self._fixture(
+            "SYNTHETIC_F2_CROSS_MEMBER_REQUEST_B"
+        )
+        request_id = uuid.uuid4()
+
+        def correction(actor_id, observation_id, service, amount):
+            def call():
+                actor = User.objects.get(pk=actor_id)
+                return revise_service(
+                    actor=actor,
+                    organization_id=self.alpha.id,
+                    request_id=request_id,
+                    service_id=service.service_id,
+                    expected_revision_id=service.revision_id,
+                    evidence_observation_id=observation_id,
+                    disposition="accepted",
+                    code="SYN-A",
+                    units=1,
+                    unit_amount=amount,
+                    currency="USD",
+                    reason=f"Synthetic cross-member correction {amount}",
+                    artifact_store=LocalArtifactStore(self.store.root),
+                )
+            return call
+
+        results, errors = self._run([
+            correction(self.alpha_user.id, observation_a.id, service_a, "5.00"),
+            correction(other_user.id, observation_b.id, service_b, "6.00"),
+        ])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], CommandError)
+        self.assertEqual(errors[0].reason_code, "request_input_conflict")
+        self.assertEqual(RecordsCommandReceipt.objects.filter(
+            organization=self.alpha, request_uuid=request_id
+        ).count(), 1)
+        self.assertEqual(ServiceRevision.objects.filter(
+            predecessor_id__in=[service_a.revision_id, service_b.revision_id]
         ).count(), 1)
 
     def test_correction_vs_approval_is_serialized_and_never_currently_approves_stale_input(self):
