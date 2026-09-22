@@ -18,3 +18,7 @@ See [foundation cards](FOUNDATION_CARDS.md) for the admitted F1 implementation s
 Each milestone needs a demonstrable outcome, acceptance evidence, and a clear owner before it is considered complete. The foundation grows the same running application through the dependency-ordered sequence in the [V1 plan](../architecture/MEDICAFE_V1_PLAN.md). Policy gaps stay visible and block only the affected capability.
 
 Work is coordinated through bounded assignments: Astra owns architecture and consequential decisions; right-sized agents handle settled, reviewable slices; at most two implementation lanes run at once; and each shared production seam has one writer.
+
+## Detailed foundation contracts
+
+- [F2: accepted services and approved claim revisions](F2_SERVICE_CLAIM_CARD.md) proposes the service, claim, approval and concurrency interfaces. Runtime implementation remains gated on F1 acceptance and review/merge of that card.
