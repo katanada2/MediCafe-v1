@@ -59,7 +59,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
             approved_by=self.alpha_user,
         )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_receipt_claim_revision_pair_fk"):
             with transaction.atomic():
                 ClaimsCommandReceipt.objects.create(
                     organization=self.alpha,
@@ -74,7 +74,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     result_policy_generation=claim_b.policy_generation,
                 )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_receipt_revision_approval_pair_fk"):
             with transaction.atomic():
                 ClaimsCommandReceipt.objects.create(
                     organization=self.alpha,
@@ -90,7 +90,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     result_policy_generation=claim_a.policy_generation,
                 )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_receipt_revision_policy_pair_fk"):
             with transaction.atomic():
                 ClaimsCommandReceipt.objects.create(
                     organization=self.alpha,
@@ -105,7 +105,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     result_policy_generation=claim_a.policy_generation,
                 )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_receipt_result_shape_ck"):
             with transaction.atomic():
                 ClaimsCommandReceipt.objects.create(
                     organization=self.alpha,
@@ -170,7 +170,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
         second_claim_revision = ClaimRevision.objects.get(pk=second_claim.revision_id)
         first_claim_line = first_claim_revision.lines.get(ordinal=1)
 
-        with self.assertRaises(DatabaseError):
+        with self.assertRaisesMessage(DatabaseError, "immutable F2 records row"):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -184,7 +184,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                         "DELETE FROM records_servicerevision WHERE id = %s",
                         [str(second_service_revision.id)],
                     )
-        with self.assertRaises(DatabaseError):
+        with self.assertRaisesMessage(DatabaseError, "immutable F2 claims row"):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -199,7 +199,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                         [str(first_claim_line.id)],
                     )
 
-        with self.assertRaises(DatabaseError):
+        with self.assertRaisesMessage(DatabaseError, "service head must advance to direct successor"):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -225,7 +225,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     unit_amount=Decimal("5.00"),
                     currency="USD",
                 )
-        with self.assertRaises(DatabaseError):
+        with self.assertRaisesMessage(DatabaseError, "claim head must advance to direct successor"):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -258,7 +258,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
         _delivery_a, _observation_a, _resolved_a, _service_a, claim_a = self._claim_fixture(
             note="SYNTHETIC_F2_PAIR_A"
         )
-        _delivery_b, _observation_b, resolved_b, service_b, claim_b = self._claim_fixture(
+        _delivery_b, observation_b, resolved_b, service_b, claim_b = self._claim_fixture(
             note="SYNTHETIC_F2_PAIR_B",
             amount="6.00",
         )
@@ -280,7 +280,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                         ["synthetic-v1", str(self.alpha.id)],
                     )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_approval_revision_digest_fk"):
             with transaction.atomic():
                 ClaimApproval.objects.create(
                     organization=self.alpha,
@@ -289,7 +289,7 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     approved_by=self.alpha_user,
                 )
         service_b_revision = service_b
-        with self.assertRaises(IntegrityError):
+        with self.assertRaisesMessage(IntegrityError, "claims_line_service_target_fk"):
             with transaction.atomic():
                 ClaimLine.objects.create(
                     organization=self.alpha,
@@ -304,5 +304,31 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     units=1,
                     unit_amount=Decimal("6.00"),
                     line_amount=Decimal("6.00"),
+                    currency="USD",
+                )
+
+        other_same_encounter = self.accepted_service(
+            resolved_b,
+            observation_b,
+            code="SYN-B",
+            units=1,
+            unit_amount="7.00",
+            reason="Synthetic same-encounter relationship probe",
+        )
+        with self.assertRaisesMessage(IntegrityError, "claims_line_srev_target_fk"):
+            with transaction.atomic():
+                ClaimLine.objects.create(
+                    organization=self.alpha,
+                    claim_revision=claim_b,
+                    claim_id=claim_b.claim_id,
+                    service_id=service_b.service_id,
+                    service_revision_id=other_same_encounter.revision_id,
+                    encounter_id=claim_b.encounter_id,
+                    patient_id=claim_b.patient_id,
+                    ordinal=2,
+                    code="SYN-B",
+                    units=1,
+                    unit_amount=Decimal("7.00"),
+                    line_amount=Decimal("7.00"),
                     currency="USD",
                 )

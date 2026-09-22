@@ -11,6 +11,7 @@ from medicafe_v1.records.queries import current_services_for_encounter, service_
 from medicafe_v1.sources.domain import CommandError
 
 from tests.f2.base import F2TestCase
+from tests.fixtures.synthetic_inputs import csv_bytes, synthetic_rows
 
 
 class ServiceCommandTests(F2TestCase):
@@ -162,6 +163,29 @@ class ServiceCommandTests(F2TestCase):
         self.assertEqual(Service.objects.filter(organization=self.alpha).count(), 0)
         self.assertEqual(ServiceRevision.objects.filter(organization=self.alpha).count(), 0)
 
+        reusable_request = uuid.uuid4()
+        with self.assertRaises(CommandError) as rejected:
+            self.accepted_service(
+                resolved,
+                observation,
+                request_id=reusable_request,
+                code="SYN-A",
+                units=0,
+                unit_amount="1.00",
+                reason="Synthetic rejected reusable request",
+            )
+        self.assertEqual(rejected.exception.reason_code, "service_units_invalid")
+        reused = self.accepted_service(
+            resolved,
+            observation,
+            request_id=reusable_request,
+            code="SYN-A",
+            units=1,
+            unit_amount="1.00",
+            reason="Synthetic corrected reusable request",
+        )
+        self.assertEqual(reused.reason_code, "service_accepted")
+
         zero = self.accepted_service(
             resolved,
             observation,
@@ -184,8 +208,46 @@ class ServiceCommandTests(F2TestCase):
         self.assertEqual(zero_revision.units, 100)
         self.assertEqual(maximum_revision.unit_amount, Decimal("9999.99"))
         self.assertEqual(maximum_revision.units, 100)
-        self.assertEqual(Service.objects.filter(organization=self.alpha).count(), 2)
-        self.assertEqual(ServiceRevision.objects.filter(organization=self.alpha).count(), 2)
+        self.assertEqual(Service.objects.filter(organization=self.alpha).count(), 3)
+        self.assertEqual(ServiceRevision.objects.filter(organization=self.alpha).count(), 3)
+
+    def test_revision_rejects_wrong_or_unresolved_same_organization_evidence(self):
+        _delivery, observation, resolved = self.resolved_observation(
+            note="SYNTHETIC_F2_EVIDENCE_OWNER"
+        )
+        accepted = self.accepted_service(
+            resolved,
+            observation,
+            reason="Synthetic evidence-bound service",
+        )
+        _other_delivery, other_observation, _other_resolved = self.resolved_observation(
+            note="SYNTHETIC_F2_WRONG_EVIDENCE"
+        )
+        unresolved_delivery = self.admit(
+            content=csv_bytes(synthetic_rows(note="SYNTHETIC_F2_UNRESOLVED_EVIDENCE"))
+        )
+        self.parse(unresolved_delivery.delivery_id)
+        unresolved_observation = self.first_observation(unresolved_delivery.delivery_id)
+
+        for candidate in (other_observation, unresolved_observation):
+            with self.assertRaises(CommandError) as rejected:
+                revise_service(
+                    actor=self.alpha_user,
+                    organization_id=self.alpha.id,
+                    request_id=uuid.uuid4(),
+                    service_id=accepted.service_id,
+                    expected_revision_id=accepted.revision_id,
+                    evidence_observation_id=candidate.id,
+                    disposition="accepted",
+                    code="SYN-A",
+                    units=1,
+                    unit_amount="10.00",
+                    currency="USD",
+                    reason="Synthetic invalid evidence correction",
+                    artifact_store=self.store,
+                )
+            self.assertEqual(rejected.exception.reason_code, "service_evidence_not_resolved")
+        self.assertEqual(ServiceRevision.objects.filter(service_id=accepted.service_id).count(), 1)
 
     def test_cross_organization_and_inactive_membership_fail_closed(self):
         _alpha_delivery, alpha_observation, alpha_resolved = self.resolved_observation(

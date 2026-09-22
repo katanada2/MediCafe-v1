@@ -13,7 +13,7 @@ from medicafe_v1.claims.commands import (
     prepare_claim_revision,
     select_synthetic_policy,
 )
-from medicafe_v1.claims.models import ClaimRevision, ClaimsCommandReceipt
+from medicafe_v1.claims.models import ClaimApproval, ClaimRevision, ClaimsCommandReceipt
 from medicafe_v1.claims.queries import (
     _revision_envelope_valid,
     claim_actionability,
@@ -171,6 +171,31 @@ class ClaimCommandTests(F2TestCase):
         )
         self.assertEqual(still_current.reason_code, "approved_current")
 
+        # Even an economically identical correction is a new selected input revision.
+        equal_value_correction = revise_service(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            service_id=first.service_id,
+            expected_revision_id=first.revision_id,
+            evidence_observation_id=_observation.id,
+            disposition="accepted",
+            code="SYN-A",
+            units=2,
+            unit_amount=Decimal("10.25"),
+            currency="USD",
+            reason="Synthetic equal-valued correction",
+            artifact_store=self.store,
+        )
+        self.assertNotEqual(equal_value_correction.revision_id, first.revision_id)
+        changed = claim_actionability(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            claim_revision_id=revision.id,
+        )
+        self.assertIn("selected_service_changed", changed.blockers)
+        self.assertNotEqual(changed.reason_code, "approved_current")
+
     def test_policy_compare_and_set_replay_preserves_original_result(self):
         for invalid_generation in (True, 1.5, Decimal("1.5")):
             with self.assertRaises(CommandError) as invalid:
@@ -180,10 +205,11 @@ class ClaimCommandTests(F2TestCase):
                     expected_generation=invalid_generation, version="synthetic-v1",
                 )
             self.assertEqual(invalid.exception.reason_code, "policy_generation_invalid")
+        no_op_request = uuid.uuid4()
         unchanged = select_synthetic_policy(
             actor=self.alpha_user,
             organization_id=self.alpha.id,
-            request_id=uuid.uuid4(),
+            request_id=no_op_request,
             expected_version="synthetic-v1",
             expected_generation=1,
             version="synthetic-v1",
@@ -229,6 +255,20 @@ class ClaimCommandTests(F2TestCase):
         self.assertEqual(replay.current_policy_version, "synthetic-v1")
         self.assertEqual(replay.current_policy_generation, 3)
 
+        no_op_replay = select_synthetic_policy(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=no_op_request,
+            expected_version="synthetic-v1",
+            expected_generation=1,
+            version="synthetic-v1",
+        )
+        self.assertEqual(no_op_replay.reason_code, "claim_request_replayed")
+        self.assertTrue(no_op_replay.replayed)
+        self.assertEqual(no_op_replay.policy_version, "synthetic-v1")
+        self.assertEqual(no_op_replay.policy_generation, 1)
+        self.assertEqual(no_op_replay.current_policy_generation, 3)
+
         with self.assertRaises(CommandError) as changed_request:
             select_synthetic_policy(
                 actor=self.alpha_user,
@@ -250,6 +290,56 @@ class ClaimCommandTests(F2TestCase):
                 version="synthetic-v2",
             )
         self.assertEqual(stale_selection.exception.reason_code, "policy_selection_conflict")
+
+    def test_returning_to_same_policy_version_does_not_revive_approval(self):
+        _delivery, _observation, resolved, service, _unused = self._two_services(
+            note="SYNTHETIC_F2_POLICY_GENERATION_REVIVAL"
+        )
+        prepared = prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=None,
+            selected_service_revision_ids=[service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic generation-bound approval",
+        )
+        revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        approved = approve_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        self.assertIsNotNone(approved.approval_id)
+        select_synthetic_policy(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            expected_version="synthetic-v1",
+            expected_generation=1,
+            version="synthetic-v2",
+        )
+        returned = select_synthetic_policy(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            expected_version="synthetic-v2",
+            expected_generation=2,
+            version="synthetic-v1",
+        )
+        self.assertEqual(returned.policy_generation, 3)
+        actionability = claim_actionability(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            claim_revision_id=revision.id,
+        )
+        self.assertEqual(actionability.reason_code, "claim_not_actionable")
+        self.assertEqual(actionability.blockers, ("policy_changed",))
+        self.assertTrue(ClaimApproval.objects.filter(pk=approved.approval_id).exists())
 
     def test_prepare_replay_reports_current_service_and_policy_blockers(self):
         _delivery, observation, resolved, service, _unused = self._two_services(
