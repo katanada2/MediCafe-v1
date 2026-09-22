@@ -87,6 +87,8 @@ Stop after the F1 PR and evidence packet. Astra reviews before merge and before 
 
 ## F2: accepted services and approved claim revision
 
+Detailed contract: [F2 service and claim card](F2_SERVICE_CLAIM_CARD.md). F1 is accepted; F2 runtime entry requires review and merge of that detailed card.
+
 Entry: Astra accepts F1 evidence and a detailed service/claim card. Build accepted corrections with provenance, bounded synthetic service policy, Decimal amounts and currency, exact line membership, immutable claim revisions and revision-scoped approvals. Material service/policy changes invalidate prior approval. No clinical inference or live claim payload assertion.
 
 Prove accepted correction survives reparse/restart, excluded work has a reason, exact selected membership is conserved, and stale approval cannot authorize an action. Use a labeled synthetic envelope unless actual 837P mapping is independently specified and reviewed.

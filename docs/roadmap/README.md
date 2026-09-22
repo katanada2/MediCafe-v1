@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 is in architecture and foundation planning. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has an accepted synthetic intake and identity foundation (F1); later milestones remain in design and implementation planning. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for the admitted F1 implementation scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2-F4 remain gated.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2-F4 remain gated.
 
 ## Milestones
 
