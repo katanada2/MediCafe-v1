@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<h1>Synthetic receiver delivery {{ detail.intent.id }}</h1>
+<p><strong>This is synthetic receiver evidence, not payer submission, adjudication, payment approval, or completion.</strong></p>
+<dl><dt>Claim revision</dt><dd>{{ detail.intent.claim_revision_id }}</dd><dt>Envelope SHA-256</dt><dd>{{ detail.intent.envelope_digest }}</dd><dt>Receiver</dt><dd>{{ detail.intent.route_id }}/{{ detail.intent.receiver_version }}</dd><dt>Current effect state</dt><dd>{{ detail.current_state }}</dd></dl>
+{% if detail.blocking_reasons %}<p>Reasons: {{ detail.blocking_reasons|join:", " }}</p>{% endif %}
+<h2>Permitted actions</h2>
+{% if cancel_form.errors or "cancel" in detail.permitted_actions %}<form method="post">{% csrf_token %}{{ cancel_form.as_p }}{% if "cancel" in detail.permitted_actions %}<button name="action" value="cancel">Cancel before dispatch</button>{% endif %}</form>{% endif %}
+{% if reconcile_form.errors or "reconcile" in detail.permitted_actions %}<form method="post">{% csrf_token %}{{ reconcile_form.as_p }}{% if "reconcile" in detail.permitted_actions %}<button name="action" value="reconcile">Read receiver evidence</button>{% endif %}</form>{% endif %}
+{% if retry_form.errors or "retry" in detail.permitted_actions %}<form method="post">{% csrf_token %}{{ retry_form.as_p }}{% if "retry" in detail.permitted_actions %}<button name="action" value="retry">Authorize exact idempotent v1 retry</button>{% endif %}</form>{% endif %}
+<h2>Attempt history</h2><ol>{% for attempt in detail.attempts %}<li>Attempt {{ attempt.ordinal }} ({{ attempt.id }}): {% if attempt.possible_dispatch %}possible dispatch committed{% else %}definitely no dispatch{% endif %}; {% if attempt.outcome %}{{ attempt.outcome.kind }} — {{ attempt.outcome.reason }}{% else %}no recorded outcome{% endif %}</li>{% empty %}<li>No attempts.</li>{% endfor %}</ol>
+<h2>Independent receiver evidence</h2><ol>{% for observation in detail.observations %}<li>{{ observation.observed_state }} receipt {{ observation.receipt_id }}; attempt {{ observation.reported_attempt_id }}; {% if observation.binding_valid %}exact binding verified{% else %}not usable: {{ observation.conflict_reason }}{% endif %}</li>{% empty %}<li>No receiver evidence.</li>{% endfor %}</ol>
+{% endblock %}

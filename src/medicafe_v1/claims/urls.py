@@ -12,6 +12,8 @@ urlpatterns = [
          views.prepare_claim, name="prepare_claim"),
     path("org/<uuid:organization_id>/claim/<uuid:claim_id>/",
          views.claim_review, name="claim_detail"),
+    path("org/<uuid:organization_id>/claim-delivery/<uuid:intent_id>/",
+         views.delivery_review, name="claim_delivery_detail"),
     path("org/<uuid:organization_id>/synthetic-policy/",
          views.policy_settings, name="policy_settings"),
 ]

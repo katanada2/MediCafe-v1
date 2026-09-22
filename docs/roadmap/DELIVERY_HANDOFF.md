@@ -57,6 +57,30 @@ Map every numbered F3 acceptance scenario and its subcases to executable evidenc
 
 Return a draft PR, exact-head PostgreSQL/process evidence, setup, remaining production gaps and reviewed public artifacts. Stop before merge or F4 implementation, or escalate a contract contradiction or two failed attempts at one approach. Mechanical choices inside the contract are delegated. No live endpoints, credentials, private V0 material or deployment configuration are authorized.
 
+## F3 implementation evidence
+
+Astra accepted the public-synthetic F3 runtime implementation and evidence at
+`8b42173315b0b042a4aa718d10dd6c0175ac088a`. [PostgreSQL run 35715327434](https://github.com/katanada2/MediCafe-v1/actions/runs/35715327434)
+passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift
+detection, the F2-to-F3 upgrade regression, and all 143 F1/F2/F3 tests in
+142.246 seconds.
+
+The executed matrix covers exact v1/v2 bytes and independent receiver storage;
+request replay/coalescing and case-slot exclusion; all pre-dispatch blockers;
+domain and membership races; fencing, stale completion, and delayed physical
+calls; actual process termination on both sides of the external-effect boundary;
+v1 explicit retry and v2 no-resend; late/conflicting evidence; monotone slot
+release; command/query authorization, CSRF, and relationship-class SQL guards;
+fresh-process durability and output redaction; and receiver outage without false
+completion. See the [F3 matrix](F3_IMPLEMENTATION_MATRIX.md) and reproducible
+[F3 walkthrough](F3_SETUP.md).
+
+At this 2026-09-22 evidence checkpoint, PR #8 was ready for review and not yet
+merged. This acceptance is synthetic integration evidence, not deployed
+qualification, live payer interoperability, compliance evidence, production
+readiness, or authority transfer from private V0. F4 runtime remains closed
+until a separate explicit reviewed admission record.
+
 ## Evidence packet and escalation
 
 Report branch, exact head, PR, changed responsibility, setup commands, resolved versions, executed tests/results, failed or unrun checks, contract coverage and open gaps. Distinguish source review from execution and local evidence from deployed qualification. Keep private operational links and source data out of this file.
@@ -73,6 +97,8 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
+- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): at the 2026-09-22 evidence checkpoint, ready for review and unmerged; runtime implementation/evidence accepted at `8b42173315b0b042a4aa718d10dd6c0175ac088a` with green run `35715327434` (143 tests in 142.246 seconds). Earlier diagnostic and green history is retained in the F3 matrix; follow the link for current PR state.
+- [F3 admission PR #7](https://github.com/katanada2/MediCafe-v1/pull/7): verified merged 2026-09-22 at `07bad8f39a631ced75b1f5df829c3a6cbb84d09e`; admits the public-synthetic F3 implementation assignment above without admitting F4.
 - [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): accepted and verified merged 2026-09-22 at `87526383052ebb68395fe1fe14f26f901bd5c952`; implementation and final-head evidence above.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
 - [F3 planning PR #4](https://github.com/katanada2/MediCafe-v1/pull/4): verified merged at `a5a74e2f3d4e870aaa87afd6dc20bc0233ec69c2`; planning only, runtime gate closed.

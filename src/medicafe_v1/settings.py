@@ -62,3 +62,14 @@ LOGIN_REDIRECT_URL = "worklist"
 LOGOUT_REDIRECT_URL = "login"
 ARTIFACT_ROOT = Path(os.environ.get("MEDICAFE_ARTIFACT_ROOT", BASE_DIR / ".artifacts"))
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024 + 1024
+SYNTHETIC_RECEIVER_TIMEOUT_SECONDS = float(
+    os.environ.get("MEDICAFE_SYNTHETIC_RECEIVER_TIMEOUT", "2.0")
+)
+SYNTHETIC_RECEIVER_ENDPOINTS = {
+    version: endpoint
+    for version, endpoint in {
+        "v1": os.environ.get("MEDICAFE_SYNTHETIC_RECEIVER_V1_URL"),
+        "v2": os.environ.get("MEDICAFE_SYNTHETIC_RECEIVER_V2_URL"),
+    }.items()
+    if endpoint
+}

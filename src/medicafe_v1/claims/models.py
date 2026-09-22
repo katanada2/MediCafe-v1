@@ -154,6 +154,23 @@ class ClaimsCommandReceipt(TenantModel):
     result_approval = models.ForeignKey(ClaimApproval, null=True, blank=True, on_delete=models.PROTECT)
     result_policy_version = models.CharField(max_length=40, blank=True)
     result_policy_generation = models.PositiveIntegerField(null=True, blank=True)
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT,
+        related_name="claims_command_receipts",
+    )
+    result_delivery_intent = models.ForeignKey(
+        "DeliveryIntent", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="command_receipts",
+    )
+    result_delivery_work = models.ForeignKey(
+        "DeliveryWork", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="command_receipts",
+    )
+    result_attempt = models.ForeignKey(
+        "DeliveryAttempt", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="command_receipts",
+    )
+    result_code = models.CharField(max_length=80, blank=True)
     accepted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -162,4 +179,202 @@ class ClaimsCommandReceipt(TenantModel):
                 fields=["organization", "request_uuid"], name="claims_receipt_org_request_uniq"
             ),
             models.UniqueConstraint(fields=["organization", "id"], name="claims_receipt_org_id_uniq"),
+        ]
+
+
+class DeliveryIntent(TenantModel):
+    claim = models.ForeignKey(Claim, on_delete=models.PROTECT, related_name="delivery_intents")
+    claim_revision = models.ForeignKey(
+        ClaimRevision, on_delete=models.PROTECT, related_name="delivery_intents"
+    )
+    claim_approval = models.ForeignKey(
+        ClaimApproval, on_delete=models.PROTECT, related_name="delivery_intents"
+    )
+    envelope_digest = models.CharField(max_length=64)
+    byte_length = models.PositiveIntegerField()
+    format_version = models.CharField(max_length=20)
+    route_id = models.CharField(max_length=80)
+    receiver_version = models.CharField(max_length=20)
+    delivery_key = models.UUIDField()
+    initial_authorization_receipt = models.ForeignKey(
+        ClaimsCommandReceipt, on_delete=models.PROTECT, related_name="initial_delivery_intents"
+    )
+    authorized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="authorized_delivery_intents"
+    )
+    authorized_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "claim_revision"], name="claims_intent_org_revision_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_intent_org_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "claim", "id"], name="claims_intent_org_claim_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "delivery_key"], name="claims_intent_org_key_uniq"
+            ),
+        ]
+
+
+class ClaimDeliveryControl(TenantModel):
+    claim = models.OneToOneField(Claim, on_delete=models.PROTECT, related_name="delivery_control")
+    current_intent = models.ForeignKey(
+        DeliveryIntent, on_delete=models.PROTECT, related_name="current_for_controls"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "claim"], name="claims_delivery_control_org_claim_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_delivery_control_org_id_uniq"
+            ),
+        ]
+
+
+class DeliveryWork(TenantModel):
+    STATE_PENDING = "pending"
+    STATE_LEASED = "leased"
+    STATE_BLOCKED = "blocked"
+    STATE_FINISHED = "finished"
+    STATES = (
+        (STATE_PENDING, "Pending"),
+        (STATE_LEASED, "Leased"),
+        (STATE_BLOCKED, "Blocked"),
+        (STATE_FINISHED, "Finished"),
+    )
+
+    intent = models.OneToOneField(DeliveryIntent, on_delete=models.PROTECT, related_name="work")
+    scheduled_authorization_receipt = models.ForeignKey(
+        ClaimsCommandReceipt, on_delete=models.PROTECT, related_name="scheduled_delivery_work"
+    )
+    state = models.CharField(max_length=20, choices=STATES, default=STATE_PENDING)
+    due_at = models.DateTimeField()
+    lease_owner = models.CharField(max_length=120, blank=True)
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+    fencing_generation = models.PositiveIntegerField(default=0)
+    safe_preflight_failures = models.PositiveSmallIntegerField(default=0)
+    blocking_reason = models.CharField(max_length=100, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "intent"], name="claims_work_org_intent_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_work_org_id_uniq"
+            ),
+        ]
+
+
+class DeliveryAttempt(TenantModel):
+    intent = models.ForeignKey(DeliveryIntent, on_delete=models.PROTECT, related_name="attempts")
+    ordinal = models.PositiveIntegerField()
+    authorization_receipt = models.ForeignKey(
+        ClaimsCommandReceipt, on_delete=models.PROTECT, related_name="authorized_delivery_attempts"
+    )
+    effective_authorizer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="delivery_attempts"
+    )
+    work = models.ForeignKey(DeliveryWork, on_delete=models.PROTECT, related_name="attempts")
+    lease_owner = models.CharField(max_length=120)
+    fencing_generation = models.PositiveIntegerField()
+    payload_digest = models.CharField(max_length=64)
+    byte_length = models.PositiveIntegerField()
+    route_id = models.CharField(max_length=80)
+    receiver_version = models.CharField(max_length=20)
+    started_at = models.DateTimeField()
+    possible_dispatch = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["intent", "ordinal"], name="claims_attempt_intent_ordinal_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_attempt_org_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["work", "fencing_generation"],
+                condition=models.Q(possible_dispatch=True),
+                name="claims_attempt_work_fence_dispatch_uniq",
+            ),
+        ]
+
+
+class ReceiverObservation(TenantModel):
+    ORIGIN_DISPATCH = "dispatch_readback"
+    ORIGIN_RECONCILIATION = "reconciliation_readback"
+    STATE_ACCEPTED = "accepted"
+    STATE_REJECTED = "rejected"
+    STATE_CONFLICT = "conflict"
+
+    intent = models.ForeignKey(DeliveryIntent, on_delete=models.PROTECT, related_name="observations")
+    claim_revision = models.ForeignKey(ClaimRevision, on_delete=models.PROTECT)
+    origin = models.CharField(max_length=40)
+    receiver_id = models.CharField(max_length=80)
+    receiver_version = models.CharField(max_length=20)
+    lookup_key = models.UUIDField()
+    receipt_id = models.CharField(max_length=100)
+    reported_attempt_id = models.UUIDField(null=True, blank=True)
+    envelope_digest = models.CharField(max_length=64)
+    byte_length = models.PositiveIntegerField()
+    received_bytes = models.BinaryField(null=True, blank=True)
+    observed_state = models.CharField(max_length=20)
+    no_acceptance_guaranteed = models.BooleanField(default=False)
+    binding_valid = models.BooleanField(default=False)
+    conflict_reason = models.CharField(max_length=100, blank=True)
+    evidence_fingerprint = models.CharField(max_length=64, null=True)
+    reported_organization_id = models.UUIDField(null=True)
+    reported_intent_id = models.UUIDField(null=True)
+    reported_claim_revision_id = models.UUIDField(null=True)
+    reported_delivery_key = models.UUIDField(null=True)
+    reported_receiver_id = models.CharField(max_length=80, null=True)
+    reported_receiver_version = models.CharField(max_length=20, null=True)
+    reported_envelope_digest = models.CharField(max_length=64, null=True)
+    reported_byte_length = models.PositiveIntegerField(null=True)
+    observed_at = models.DateTimeField()
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_observation_org_id_uniq"
+            ),
+        ]
+
+
+class AttemptOutcome(TenantModel):
+    PRE_DISPATCH_FAILED = "pre_dispatch_failed"
+    RECEIVER_ACCEPTED = "receiver_accepted"
+    RECEIVER_REJECTED = "receiver_rejected"
+    UNKNOWN = "unknown"
+    KINDS = (
+        (PRE_DISPATCH_FAILED, "Pre-dispatch failed"),
+        (RECEIVER_ACCEPTED, "Receiver accepted"),
+        (RECEIVER_REJECTED, "Receiver rejected"),
+        (UNKNOWN, "Unknown"),
+    )
+
+    attempt = models.OneToOneField(DeliveryAttempt, on_delete=models.PROTECT, related_name="outcome")
+    kind = models.CharField(max_length=30, choices=KINDS)
+    reason = models.CharField(max_length=100)
+    ended_at = models.DateTimeField()
+    receiver_observation = models.ForeignKey(
+        ReceiverObservation, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="attempt_outcomes",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "id"], name="claims_outcome_org_id_uniq"
+            ),
         ]
