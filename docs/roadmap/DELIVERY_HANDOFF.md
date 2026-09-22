@@ -7,8 +7,8 @@ Deliver the synthetic foundation under the [charter](../architecture/CHARTER.md)
 ## Current state
 
 - Public repository bootstrap is committed on main.
-- This milestone adds charter, capability/authority map, stack decision and foundation cards.
-- Runtime, migrations, integration fixtures and test evidence do not yet exist.
+- The merged planning milestone added the charter, capability/authority map, stack decision and foundation cards.
+- Draft F1 PR #2 now contains the synthetic runtime, migrations, fixtures and PostgreSQL test evidence; Astra acceptance remains pending.
 - V0 evidence remains historical discovery; no fresh code-completeness or production qualification claim.
 - F1 is the only admitted runtime card. F2-F4 require further entry-gate decisions.
 
@@ -30,5 +30,9 @@ Astra reviewed two bounded read-only agent analyses. The synthesis corrected a p
 
 A future update should record the delivery task/branch and evidence status. Keep private evidence links and operational details out of this public file.
 
-Final contract review resolved delivery version ambiguity, atomic create-and-resolve retry identity, and success-only ParseResult persistence. The associated [charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1) was last verified open during review; its merge is the F1 entry gate.
+F1 delivery is assigned to task `01a09b4c-b9cb-7f83-bc7b-2dbd2c3b717d` on branch `codex/f1-attributable-intake`. During implementation, Astra clarified concurrent parse accounting: computation remains outside the Delivery lock; every completed computation records its own terminal attempt, while only the first success creates the canonical result and observations. A call that sees the result before computing is replay and records no attempt.
+
+Draft [F1 PR #2](https://github.com/katanada2/MediCafe-v1/pull/2) carries the implementation and remains unmerged for Astra review. GitHub Actions [run 34766547768](https://github.com/katanada2/MediCafe-v1/actions/runs/34766547768) passed on implementation head `75d9309`: fresh PostgreSQL 17 migrations, Django system checks, migration-drift detection, and all 28 synthetic F1 tests. This is executed synthetic foundation evidence, not deployed or production qualification.
+
+Final contract review resolved delivery version ambiguity, atomic create-and-resolve retry identity, and success-only ParseResult persistence. The associated [charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1) is verified merged at baseline `c24bbe5fe0bab3079b6c569e91143ccc23afced8`, satisfying the F1 entry gate.
 Automated PR review additionally required version-scoped failure history. F1 therefore records immutable terminal ParseAttempts while keeping ParseResults success-only; no durable running/lease subsystem is added.

@@ -1,0 +1,49 @@
+name: F1 foundation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-foundation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: medicafe_v1
+          POSTGRES_USER: medicafe
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U medicafe -d medicafe_v1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_DB: medicafe_v1
+      POSTGRES_USER: medicafe
+      POSTGRES_PASSWORD: synthetic-ci-only
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_CONNECT_TIMEOUT: 3
+      MEDICAFE_ARTIFACT_ROOT: /tmp/medicafe-artifacts
+      DJANGO_SECRET_KEY: synthetic-ci-only
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: "0.12.13"
+      - run: uv sync --locked
+      - run: uv run python manage.py migrate --noinput
+      - run: uv run python manage.py check
+      - run: uv run python manage.py makemigrations --check --dry-run
+      - run: uv run python manage.py test tests.f1 --verbosity 2
