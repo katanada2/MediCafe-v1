@@ -1,7 +1,8 @@
 # F3 implementation and acceptance matrix
 
-Status: implementation plan. Every row is **planned**, not executed, until the
-exact-head evidence section is updated. Source inspection is not test execution.
+Status: implementation in draft PR #8. Executed evidence below is tied to an
+exact commit and CI run; newer working-tree tests remain unrun until a later
+exact-head run. Source inspection is not test execution or milestone acceptance.
 
 ## Settled seams
 
@@ -11,9 +12,11 @@ exact-head evidence section is updated. Source inspection is not test execution.
 - A claims receipt records the effective actor and time. Its typed F3 result
   references are reciprocally bound to the intent/work in the same transaction;
   coalescing receipts never replace the initial authorizer.
-- Final dispatch admission locks encounter, policy, claim, slot/intent, then
-  work; it validates the live database-time lease and fencing generation before
-  committing a possible-dispatch attempt. The HTTP call occurs after commit.
+- Final dispatch admission first locks and validates membership as an
+  authentication prelude compatible with existing service commands, then locks
+  encounter, policy, claim, slot/intent, and work. It validates the live
+  database-time lease and fencing generation before committing a
+  possible-dispatch attempt. The HTTP call occurs after commit.
 - The adapter accepts only a frozen intent/attempt envelope and returns transport
   facts. Accepted/rejected outcomes require a separate readback containing the
   receiver's stored bytes; a producer response flag is never terminal evidence.
@@ -38,20 +41,20 @@ does not turn planned evidence into completion evidence.
 
 ## Executable evidence map
 
-| # | Contract scenario and subcases | Planned executable evidence | State |
+| # | Contract scenario and subcases | Executable evidence | State |
 |---|---|---|---|
-| 1 | v1 and v2 receive the exact approved bytes; independent ledger bytes equal the immutable F2 envelope; application and receiver restart preserve receipt attribution | `tests.f3.test_process_delivery.ProcessDeliveryTests.test_exact_bytes_each_receiver_survive_both_restarts`; independent psycopg ledger read plus `assert_delivery_boundary` | Planned |
-| 2 | Exact request replay; changed input/target conflict; different request coalescing; competing revision slot exclusion | `tests.f3.test_commands.DeliveryCommandTests.test_request_receipts_replay_conflict_and_coalesce`; `tests.f3.test_concurrency.DeliveryRaceTests.test_competing_revisions_have_one_case_slot` | Planned |
-| 3 | Transient pre-dispatch failure and three-attempt cap; stale domain, revoked actor, corrupt envelope, and wrong route never reach receiver | `tests.f3.test_worker.WorkerPreflightTests` methods for `safe_retry_limit`, `domain_stale`, `membership_revoked`, `corrupt_envelope`, and `route_mismatch`; ledger count assertions | Planned |
-| 4 | Service correction, claim revision, policy mutation, and membership revocation each race dispatch. Every class is exercised before the boundary (no send); representative after-boundary cases prove frozen authorized bytes retain their attempt identity. | Named methods in `tests.f3.test_concurrency.DispatchBoundaryRaceTests` with deterministic barriers | Planned |
-| 5 | Concurrent workers/duplicate pickup create one possible-dispatch attempt; stale fence cannot append/finish; delayed authorized call remains possible; recovery differs with/without marker | `tests.f3.test_concurrency.WorkerFenceRaceTests`; isolated SQL stale-owner, stale-generation, expired-lease cases in `tests.f3.test_integrity.DispatchFenceSQLTests` | Planned |
-| 6 | Kill after marker/before call and after receiver commit/before outcome; both first become uncertain; restart never blindly resends; readback distinguishes accepted from absent | `tests.f3.test_crash_windows.CrashWindowProcessTests` using bounded subprocess barriers and process termination | Planned |
-| 7 | v1 response loss plus explicit retry yields one durable acceptance/key/receipt; concurrent retry requests stay bounded; v2 performs no second POST and missing evidence stays uncertain | `tests.f3.test_retry.IdempotentRetryTests`; receiver invocation counts read through independent psycopg | Planned |
-| 8 | Late valid receipt supplements unknown after lease expiry; duplicate observation replay; wrong tuple/bytes/receipt and conflicting reuse remain review; original attempt attribution retained; another attempt's rejection cannot bind | `tests.f3.test_reconciliation.ReconciliationEvidenceTests`; named outcome/observation SQL binding failures in `tests.f3.test_integrity.ObservationBindingSQLTests` | Planned |
-| 9 | New revision/route cannot evade uncertain or accepted slot; safe cancellation and all-attempt definitive rejection permit guarded advance; conflicting/later rejection cannot erase or release earlier possible effect | `tests.f3.test_slot.ClaimDeliveryControlTests` including every release proof branch and direct guarded-advance SQL cases | Planned |
-| 10 | SQL cannot substitute tenant/revision/approval/digest/intent/attempt/receipt, rewind fences, use stale lease, or rewrite history; wrong/inactive callers fail all commands/queries; web CSRF and bounded errors | `tests.f3.test_integrity` names one assertion per relationship/fence/history guard; `tests.f3.test_authorization`; `tests.f3.test_web` | Planned |
-| 11 | Fresh processes preserve pending work, unknown attempt, and supplementary receipt; synthetic sentinel absent from logs/errors and present only on authorized detail/payload | `tests.f3.test_durability.FreshProcessDurabilityTests`; `tests.f3.test_web.SensitiveSurfaceTests` | Planned |
-| 12 | Receiver outage during delivery/readback and same-ledger restart produce no false completion, lost key, or route fallback; ordinary claim review remains available | `tests.f3.test_process_delivery.ReceiverOutageTests` plus authenticated F2 claim view assertion | Planned |
+| 1 | v1/v2 exact bytes, independent ledger, receiver and worker restart | `test_process_delivery.ProcessDeliveryTests.test_exact_bytes_each_receiver_survive_receiver_and_worker_restart` plus `assert_delivery_boundary` | Executed at `8bc9b84` |
+| 2 | Replay/conflict/coalescing and guarded case slot | `test_commands.DeliveryCommandTests.test_request_receipts_replay_conflict_and_coalesce`; `test_slot.ClaimDeliveryControlTests` | Executed at `8bc9b84`; simultaneous competing-revision request remains to map |
+| 3 | Pre-dispatch cap and no-send blockers | `test_worker.WorkerPreflightTests.test_transient_preflight_limit_records_three_definitely_unsent_attempts`, `test_revoked_effective_authorizer_blocks_before_marker`; `test_authorization_boundary.DispatchBoundaryRaceTests.test_each_mutation_class_committed_before_marker_prevents_send` | Executed at `8bc9b84`; invalid-route test is newer/unrun; immutable F2 envelope corruption is rejected by F2 integrity tests |
+| 4 | Domain/membership races before boundary and frozen state after boundary | `test_authorization_boundary.DispatchBoundaryRaceTests.test_each_mutation_class_committed_before_marker_prevents_send`, `test_policy_change_after_marker_keeps_frozen_authorized_bytes`; new `test_membership_lock_prelude_avoids_service_dispatch_deadlock` | First two executed at `8bc9b84`; forced lock interleaving newer/unrun |
+| 5 | Duplicate pickup, fencing, recovery with/without marker, delayed call | `test_concurrency.WorkerFenceRaceTests`; `test_integrity.DispatchFenceSQLTests`; `test_worker.WorkerPreflightTests.test_expired_lease_without_marker_is_released_to_new_generation` | Base duplicate/SQL guards executed at `8bc9b84`; stale/newer-fence and delayed-call additions newer/unrun |
+| 6 | Actual process termination at both required crash windows | `test_crash_windows.CrashWindowProcessTests.test_kill_after_marker_before_call_recovers_unknown_without_send`, `test_kill_after_receiver_commit_before_outcome_recovers_then_reconciles` | Implemented with bounded subprocess barriers; not yet CI-executed |
+| 7 | v1 idempotent retry, concurrent retry, v2 no resend | `test_crash_windows.CrashWindowProcessTests` response-loss tests; `test_reconciliation.ReconciliationEvidenceTests` retry tests; new `test_concurrency.WorkerFenceRaceTests.test_concurrent_retry_commands_schedule_once` | Sequential v1/v2 cases executed at `8bc9b84`; concurrent retry newer/unrun |
+| 8 | Late/duplicate/conflicting evidence and original attribution | `test_reconciliation.ReconciliationEvidenceTests`; `test_integrity.DispatchFenceSQLTests` evidence tests | Executed at `8bc9b84`, including canonical receipt/observation guards |
+| 9 | Slot exclusion and safe monotone release | `test_slot.ClaimDeliveryControlTests` four named tests | Executed at `8bc9b84` |
+| 10 | SQL integrity, authorization, CSRF and bounded errors | `test_integrity.DispatchFenceSQLTests`; `test_web.DeliveryWebTests`; new `test_authorization.DeliveryAuthorizationTests` | Integrity/web executed at `8bc9b84`; complete caller matrix delegated and not yet executed |
+| 11 | Fresh processes and restart durability | `test_process_delivery.ProcessDeliveryTests.test_exact_bytes_each_receiver_survive_receiver_and_worker_restart`; `test_reconciliation.ReconciliationEvidenceTests.test_late_acceptance_supplements_immutable_unknown_and_duplicate_replays` | Executed at `8bc9b84`; a distinct log-sentinel assertion is not yet mapped |
+| 12 | Receiver outage/readback failure without false completion or UI loss | `test_process_delivery.ProcessDeliveryTests.test_receiver_outage_has_no_false_completion_resend_or_route_fallback` | Executed at `8bc9b84` |
 
 ## Required regression and verification
 
@@ -66,5 +69,17 @@ does not turn planned evidence into completion evidence.
 
 ## Exact-head evidence
 
-Not executed yet. Populate with commit, commands, counts, process evidence,
-failures, and unrun checks before requesting acceptance.
+- `3931883`, CI `35709767966`: migrations/check/drift passed; 100 tests ran
+  with three failures (one shared fixed receipt fixture and two claim/source URL
+  collisions). No migration or runtime error remained after diagnosis.
+- `4251878`, CI `35711086917`: migrations/check/drift passed; 118 tests ran,
+  117 passed and one lease-expiry fixture errored because migration `0008`
+  correctly rejected directly backdating a live lease. Secret scan passed.
+- `8bc9b84eea0882f02b0a1a93f79147b770f66f61`, CI `35711730214`:
+  migrations, Django check, migration drift, F2-to-F3 upgrade regression, and
+  all 120 F1/F2/F3 tests passed in 108.865 seconds.
+
+The current working tree adds the explicitly marked unrun cases above. They
+require a new exact-head PostgreSQL run. PR #8 remains draft; this matrix does
+not claim F3 acceptance, deployed qualification, live interoperability, or F4
+authorization.

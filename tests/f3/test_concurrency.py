@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -8,9 +9,14 @@ from django.db import close_old_connections
 from django.utils import timezone
 
 from medicafe_v1.claims.delivery_adapter import ReceiverEvidence
-from medicafe_v1.claims.delivery_commands import reconcile_delivery, request_delivery
-from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
-from medicafe_v1.claims.models import DeliveryAttempt, ReceiverObservation
+from medicafe_v1.claims.delivery_commands import (
+    reconcile_delivery, request_delivery, retry_idempotent_delivery,
+)
+from medicafe_v1.claims.delivery_worker import _finish_with_token, run_delivery_worker_once
+from medicafe_v1.claims.models import (
+    AttemptOutcome, ClaimsCommandReceipt, DeliveryAttempt, DeliveryWork,
+    ReceiverObservation,
+)
 
 from .base import F3TransactionTestCase
 from .test_worker import AcceptedAdapter
@@ -86,6 +92,146 @@ class WorkerFenceRaceTests(F3TransactionTestCase):
                 intent_id=requested.intent_id, possible_dispatch=True
             ).count(), 1,
         )
+
+    def test_expired_worker_can_physically_finish_but_not_retake_newer_fence(self):
+        _, revision, _ = self.approved_claim()
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        adapter = BlockingAcceptedAdapter()
+
+        def delayed_worker():
+            close_old_connections()
+            try:
+                return run_delivery_worker_once(
+                    worker_id="delayed-authorized", lease_seconds=1, adapter=adapter,
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(delayed_worker)
+            self.assertTrue(adapter.entered.wait(timeout=5))
+            deadline = time.monotonic() + 2
+            while DeliveryWork.objects.get(id=requested.work_id).lease_expires_at > timezone.now():
+                if time.monotonic() >= deadline:
+                    self.fail("delayed worker lease did not expire")
+                time.sleep(0.02)
+            recovered = run_delivery_worker_once(
+                worker_id="recovery-fence", lease_seconds=2, adapter=AcceptedAdapter(),
+            )
+            adapter.release.set()
+            delayed = future.result(timeout=10)
+
+        self.assertEqual(recovered.reason_code, "dispatch_outcome_unknown")
+        self.assertEqual(delayed.reason_code, "receiver_evidence_recorded")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertEqual(attempt.outcome.kind, AttemptOutcome.UNKNOWN)
+        self.assertEqual(len(adapter.sent), 1)
+        observation = ReceiverObservation.objects.get(intent_id=requested.intent_id)
+        self.assertTrue(observation.binding_valid)
+        work = DeliveryWork.objects.get(id=requested.work_id)
+        self.assertEqual(work.state, DeliveryWork.STATE_FINISHED)
+        self.assertEqual(work.blocking_reason, "dispatch_outcome_unknown")
+
+    def test_concurrent_retry_commands_schedule_once(self):
+        _, revision, _ = self.approved_claim()
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        run_delivery_worker_once(
+            worker_id="retry-uncertain", lease_seconds=2,
+            adapter=UnknownTransportAdapter(),
+        )
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        barrier = threading.Barrier(2)
+
+        def retry():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=5)
+                return retry_idempotent_delivery(
+                    actor=self.alpha_user, organization_id=self.alpha.id,
+                    request_id=uuid.uuid4(), intent_id=requested.intent_id,
+                    expected_attempt_id=attempt.id,
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _index: retry(), range(2)))
+
+        self.assertEqual(
+            sorted(result.reason_code for result in results),
+            ["delivery_retry_already_scheduled", "delivery_retry_scheduled"],
+        )
+        receipts = ClaimsCommandReceipt.objects.filter(
+            command_kind="retry_idempotent_delivery",
+            result_delivery_intent_id=requested.intent_id,
+        )
+        self.assertEqual(receipts.count(), 2)
+        scheduled = receipts.get(result_code="delivery_retry_scheduled")
+        self.assertEqual(
+            DeliveryWork.objects.get(id=requested.work_id).scheduled_authorization_receipt_id,
+            scheduled.id,
+        )
+
+    def test_stale_completion_cannot_finish_newer_unmarked_lease(self):
+        _, revision, _ = self.approved_claim()
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        with self.assertRaises(RuntimeError):
+            run_delivery_worker_once(
+                worker_id="stale-owner", lease_seconds=1, adapter=AcceptedAdapter(),
+                before_membership_lock=lambda: (_ for _ in ()).throw(RuntimeError("stop")),
+            )
+        stale_work = DeliveryWork.objects.get(id=requested.work_id)
+        deadline = time.monotonic() + 2
+        while stale_work.lease_expires_at > timezone.now():
+            if time.monotonic() >= deadline:
+                self.fail("stale lease did not expire")
+            time.sleep(0.02)
+
+        entered = threading.Event()
+        release = threading.Event()
+
+        def replacement_worker():
+            close_old_connections()
+            try:
+                return run_delivery_worker_once(
+                    worker_id="new-owner", lease_seconds=5, adapter=AcceptedAdapter(),
+                    before_membership_lock=lambda: (
+                        entered.set(),
+                        release.wait(timeout=5) or (_ for _ in ()).throw(
+                            RuntimeError("replacement release timeout")
+                        ),
+                    ),
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(replacement_worker)
+            self.assertTrue(entered.wait(timeout=5))
+            current = DeliveryWork.objects.get(id=requested.work_id)
+            self.assertEqual(current.fencing_generation, stale_work.fencing_generation + 1)
+            stale_finish = _finish_with_token(
+                work=stale_work, worker_id="stale-owner",
+                generation=stale_work.fencing_generation,
+                state=DeliveryWork.STATE_FINISHED, reason="stale_completion",
+            )
+            release.set()
+            replacement = future.result(timeout=10)
+
+        self.assertEqual(stale_finish, 0)
+        self.assertEqual(replacement.reason_code, "receiver_evidence_recorded")
 
     def test_concurrent_same_receipt_different_intents_yields_one_binding_and_one_conflict(self):
         requested = []

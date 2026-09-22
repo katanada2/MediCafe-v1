@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import uuid
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
+from django.db import close_old_connections, transaction
 from medicafe_v1.access.models import Membership
 from medicafe_v1.claims.commands import prepare_claim_revision, select_synthetic_policy
 from medicafe_v1.claims.delivery_commands import request_delivery
@@ -106,3 +109,33 @@ class DispatchBoundaryRaceTests(F3TransactionTestCase):
         attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
         self.assertTrue(attempt.possible_dispatch)
         self.assertEqual(str(attempt.id), adapter.sent[0].attempt_id)
+
+    def test_membership_lock_prelude_avoids_service_dispatch_deadlock(self):
+        revision, requested = self.prepared_delivery()
+        adapter = AcceptedAdapter()
+        worker_at_membership = threading.Event()
+
+        def worker():
+            close_old_connections()
+            try:
+                return run_delivery_worker_once(
+                    worker_id="lock-order-worker", lease_seconds=5, adapter=adapter,
+                    before_membership_lock=worker_at_membership.set,
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with transaction.atomic():
+                Membership.objects.select_for_update(no_key=True).get(
+                    organization=self.alpha, user=self.alpha_user,
+                )
+                future = pool.submit(worker)
+                self.assertTrue(worker_at_membership.wait(timeout=5))
+                self.mutate_service(revision)
+            result = future.result(timeout=10)
+
+        self.assertEqual(result.reason_code, "delivery_blocked")
+        self.assertEqual(adapter.sent, [])
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertFalse(attempt.possible_dispatch)

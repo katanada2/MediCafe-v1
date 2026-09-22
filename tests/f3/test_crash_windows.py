@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import uuid
+import tempfile
+import time
+from pathlib import Path
 
 import psycopg
 from psycopg import sql
+from django.test import override_settings
+from django.utils import timezone
 
+from medicafe_v1.claims.delivery_adapter import LoopbackReceiverAdapter
 from medicafe_v1.claims.delivery_commands import (
-    request_delivery, retry_idempotent_delivery,
+    reconcile_delivery, request_delivery, retry_idempotent_delivery,
 )
-from medicafe_v1.claims.models import AttemptOutcome, DeliveryAttempt, ReceiverObservation
+from medicafe_v1.claims.models import (
+    AttemptOutcome, DeliveryAttempt, DeliveryWork, ReceiverObservation,
+)
 from medicafe_v1.sources.domain import CommandError
 
 from .base import F3TransactionTestCase
@@ -43,6 +51,77 @@ class CrashWindowProcessTests(F3TransactionTestCase):
                 version, self.alpha.id, intent_id,
             ))
             return cursor.fetchone()[0]
+
+    def terminate_at_barrier(self, *, phase, test_mode=None):
+        with tempfile.TemporaryDirectory() as directory:
+            barrier = Path(directory) / "reached"
+            process = self.receiver.start_barrier_worker(
+                barrier_path=barrier, phase=phase, test_mode=test_mode,
+            )
+            deadline = time.monotonic() + 10
+            try:
+                while not barrier.exists():
+                    if process.poll() is not None:
+                        stdout, stderr = process.communicate(timeout=1)
+                        self.fail(
+                            f"worker exited before {phase}: {process.returncode} {stdout} {stderr}"
+                        )
+                    if time.monotonic() >= deadline:
+                        self.fail(f"worker did not reach {phase} barrier")
+                    time.sleep(0.02)
+                process.terminate()
+                process.wait(timeout=5)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+
+    def wait_for_lease_expiry(self, work_id):
+        deadline = time.monotonic() + 4
+        while DeliveryWork.objects.get(id=work_id).lease_expires_at > timezone.now():
+            if time.monotonic() >= deadline:
+                self.fail("subprocess delivery lease did not expire")
+            time.sleep(0.02)
+
+    def test_kill_after_marker_before_call_recovers_unknown_without_send(self):
+        requested = self.request("v1")
+        self.terminate_at_barrier(phase="after_marker")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertFalse(AttemptOutcome.objects.filter(attempt=attempt).exists())
+        self.assertEqual(self.ledger_count("v1", requested.intent_id), 0)
+        self.wait_for_lease_expiry(requested.work_id)
+
+        recovered = self.receiver.run_worker()
+
+        self.assertEqual(recovered.returncode, 0, recovered.stderr)
+        self.assertIn("dispatch_outcome_unknown", recovered.stdout)
+        self.assertEqual(self.ledger_count("v1", requested.intent_id), 0)
+        self.assertEqual(attempt.outcome.kind, AttemptOutcome.UNKNOWN)
+
+    def test_kill_after_receiver_commit_before_outcome_recovers_then_reconciles(self):
+        requested = self.request("v1")
+        self.terminate_at_barrier(phase="after_transport")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertFalse(AttemptOutcome.objects.filter(attempt=attempt).exists())
+        self.assertEqual(self.ledger_count("v1", requested.intent_id), 1)
+        self.wait_for_lease_expiry(requested.work_id)
+
+        recovered = self.receiver.run_worker()
+        self.assertEqual(recovered.returncode, 0, recovered.stderr)
+        self.assertIn("dispatch_outcome_unknown", recovered.stdout)
+        with override_settings(SYNTHETIC_RECEIVER_ENDPOINTS=self.receiver.endpoints):
+            reconciled = reconcile_delivery(
+                actor=self.alpha_user, organization_id=self.alpha.id,
+                intent_id=requested.intent_id, adapter=LoopbackReceiverAdapter(timeout=1),
+            )
+
+        self.assertEqual(reconciled.reason_code, "receiver_evidence_recorded")
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.outcome.kind, AttemptOutcome.UNKNOWN)
+        observation = ReceiverObservation.objects.get(intent_id=requested.intent_id)
+        self.assertTrue(observation.binding_valid)
+        self.assertEqual(observation.reported_attempt_id, attempt.id)
+        self.assertEqual(self.ledger_count("v1", requested.intent_id), 1)
 
     def test_v1_commit_response_loss_then_explicit_retry_has_one_durable_acceptance(self):
         requested = self.request("v1")

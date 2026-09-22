@@ -47,6 +47,11 @@ class TransientPreflightAdapter(AcceptedAdapter):
         raise CommandError("receiver_preflight_transient")
 
 
+class InvalidRouteAdapter(AcceptedAdapter):
+    def validate_configuration(self, receiver_id, version):
+        raise CommandError("receiver_configuration_missing")
+
+
 class CrashSignal(Exception):
     pass
 
@@ -114,6 +119,20 @@ class WorkerPreflightTests(F3TransactionTestCase):
         self.assertEqual(attempt.outcome.reason, "dispatch_authorizer_inactive")
         self.assertEqual(adapter.sent, [])
 
+    def test_invalid_receiver_route_blocks_before_marker(self):
+        _, requested = self.request()
+        adapter = InvalidRouteAdapter()
+
+        result = run_delivery_worker_once(
+            worker_id="invalid-route", lease_seconds=2, adapter=adapter,
+        )
+
+        self.assertEqual(result.reason_code, "delivery_blocked")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertFalse(attempt.possible_dispatch)
+        self.assertEqual(attempt.outcome.reason, "receiver_configuration_missing")
+        self.assertEqual(adapter.sent, [])
+
     def test_expired_marker_recovers_unknown_without_resend(self):
         _, requested = self.request()
         adapter = AcceptedAdapter()
@@ -139,3 +158,28 @@ class WorkerPreflightTests(F3TransactionTestCase):
         self.assertEqual(AttemptOutcome.objects.get(attempt=attempt).kind, AttemptOutcome.UNKNOWN)
         self.assertEqual(recovered_adapter.sent, [])
         self.assertEqual(DeliveryAttempt.objects.filter(intent_id=requested.intent_id).count(), 1)
+
+    def test_expired_lease_without_marker_is_released_to_new_generation(self):
+        _, requested = self.request()
+        with self.assertRaises(CrashSignal):
+            run_delivery_worker_once(
+                worker_id="pre-marker-crash", lease_seconds=1,
+                adapter=AcceptedAdapter(),
+                before_membership_lock=lambda: (_ for _ in ()).throw(CrashSignal()),
+            )
+        self.assertFalse(DeliveryAttempt.objects.filter(intent_id=requested.intent_id).exists())
+        deadline = time.monotonic() + 2
+        while DeliveryWork.objects.get(id=requested.work_id).lease_expires_at > timezone.now():
+            if time.monotonic() >= deadline:
+                self.fail("pre-marker lease did not expire within bounded wait")
+            time.sleep(0.02)
+
+        adapter = AcceptedAdapter()
+        result = run_delivery_worker_once(
+            worker_id="replacement-worker", lease_seconds=2, adapter=adapter,
+        )
+
+        self.assertEqual(result.reason_code, "receiver_evidence_recorded")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertEqual(attempt.fencing_generation, 2)
+        self.assertEqual(len(adapter.sent), 1)

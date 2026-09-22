@@ -167,7 +167,7 @@ def _preflight_failure(*, work_id, worker_id, generation, reason, transient=Fals
         )
 
 
-def _admit_dispatch(*, work_id, worker_id, generation):
+def _admit_dispatch(*, work_id, worker_id, generation, before_membership_lock=None):
     scoped_work = DeliveryWork.objects.select_related(
         "intent__claim_revision", "scheduled_authorization_receipt__accepted_by"
     ).get(pk=work_id)
@@ -180,13 +180,15 @@ def _admit_dispatch(*, work_id, worker_id, generation):
         )
     try:
         with transaction.atomic():
-            locked_encounter(
-                actor=authorizer, organization_id=scoped_intent.organization_id,
-                encounter_id=scoped_intent.claim_revision.encounter_id,
-            )
+            if before_membership_lock:
+                before_membership_lock()
             require_active_membership(
                 actor=authorizer, organization_id=scoped_intent.organization_id,
                 for_update=True,
+            )
+            locked_encounter(
+                actor=authorizer, organization_id=scoped_intent.organization_id,
+                encounter_id=scoped_intent.claim_revision.encounter_id,
             )
             SyntheticPolicySelection.objects.select_for_update().get(
                 organization_id=scoped_intent.organization_id
@@ -286,7 +288,8 @@ def _record_unknown(*, work_id, attempt_id, worker_id, generation, reason):
 
 
 def run_delivery_worker_once(*, worker_id=None, lease_seconds=10, adapter=None,
-                             test_mode=None, after_marker=None):
+                             test_mode=None, after_marker=None, after_transport=None,
+                             before_membership_lock=None):
     worker_id = worker_id or f"worker-{uuid.uuid4()}"
     adapter = adapter or LoopbackReceiverAdapter()
     adapter_timeout = float(getattr(adapter, "timeout", 0))
@@ -314,13 +317,16 @@ def run_delivery_worker_once(*, worker_id=None, lease_seconds=10, adapter=None,
             transient=exc.reason_code == "receiver_preflight_transient",
         )
     frozen, admitted = _admit_dispatch(
-        work_id=work_id, worker_id=worker_id, generation=generation
+        work_id=work_id, worker_id=worker_id, generation=generation,
+        before_membership_lock=before_membership_lock,
     )
     if frozen is None:
         return admitted
     if after_marker:
         after_marker(frozen)
     transport = adapter.send(frozen, test_mode=test_mode)
+    if after_transport:
+        after_transport(frozen, transport)
     if transport.status not in {"accepted", "rejected"}:
         return _record_unknown(
             work_id=work_id, attempt_id=admitted.attempt_id,

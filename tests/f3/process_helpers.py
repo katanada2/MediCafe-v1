@@ -138,6 +138,24 @@ class ReceiverProcess:
             capture_output=True, text=True, timeout=15, check=False,
         )
 
+    def start_barrier_worker(self, *, barrier_path, phase, test_mode=None,
+                             lease_seconds=2):
+        argument = {
+            "after_marker": "--barrier-after-marker",
+            "after_transport": "--barrier-after-transport",
+        }[phase]
+        command = [
+            sys.executable, "-m", "tests.f3.worker_process",
+            "--worker-id", f"barrier-test-{uuid.uuid4()}",
+            "--lease-seconds", str(lease_seconds), argument, str(barrier_path),
+        ]
+        if test_mode:
+            command.extend(("--test-mode", test_mode))
+        return subprocess.Popen(
+            command, cwd=settings.BASE_DIR, env=self.worker_environment(),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+
     def query_state(self, intent_id):
         result = subprocess.run(
             [sys.executable, "-m", "tests.f3.state_process", str(intent_id)],
