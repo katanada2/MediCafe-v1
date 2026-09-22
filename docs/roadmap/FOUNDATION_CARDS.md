@@ -1,6 +1,6 @@
 # Foundation work cards
 
-Status: F1 is accepted. Merge of PR #3 admits F2 under its detailed card; on main containing that card, F2 implementation may proceed. F3-F4 remain gated milestone contracts requiring detailed policy/interface review. No live external effect or real data is admitted.
+Status: F1 and F2 are accepted; F2 merged through PR #6. F3 implementation is admitted only by merge of the explicit admission record in [the delivery handoff](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment). F4 runtime remains gated. Only the F3 card's separate synthetic loopback receiver is authorized; no live integration or real data is admitted.
 
 Read the [charter](../architecture/CHARTER.md) and [stack decision](../decisions/0001-foundation-stack.md). Sol owns delivery; Astra owns architectural exceptions and acceptance.
 

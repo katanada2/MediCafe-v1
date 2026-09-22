@@ -8,8 +8,8 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
-- The [detailed F2 card](F2_SERVICE_CLAIM_CARD.md) admitted the bounded service/claim runtime through merged PR #3. PR #6 implements that card and is awaiting Astra's acceptance; its synthetic CI evidence does not itself transfer milestone authority.
-- F3 and F4 planning contracts are merged, but both runtime gates remain closed. No real data, external effect, migration from V0 or live integration is authorized.
+- Astra accepted F2 on 2026-09-22 and merged [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6) at `87526383052ebb68395fe1fe14f26f901bd5c952`. Its bounded service/claim authority is synthetic only.
+- F3 runtime is admitted by merge of the admission record below. Main containing this record is the entry gate; an unmerged branch is not authorization. F4 runtime remains closed. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
 
 ## F1 acceptance evidence
 
@@ -43,6 +43,20 @@ Of four final automated-review findings, three required bounded corrections: con
 
 This is public-synthetic repository and PostgreSQL integration evidence. It is not a manual browser walkthrough, deployed qualification, real payer interoperability, production readiness, compliance evidence or authority transfer from V0. No external dispatch exists, and F3/F4 runtime remains out of scope.
 
+## F3 admission and delivery assignment
+
+Astra accepts the reviewed [F3 delivery contract](F3_DELIVERY_CARD.md) against the merged F2 implementation. Its exact-envelope, approval, service-dependency and policy-generation interfaces remain the authority at the future dispatch boundary. Merge of this record admits the complete public-synthetic F3 milestone; no F4 runtime is admitted.
+
+F2 acceptance used implementation head `de1d16681c08781c4de705c5ecc93227f41822f3`, final documentation head `19dff27f5a01f5bf06cc375bdf46ef8b9d1c7b7d`, the 68-test implementation run above, and green [final-head run 35697574634](https://github.com/katanada2/MediCafe-v1/actions/runs/35697574634). All four automated-review threads were resolved after focused source and PostgreSQL verification. The final merge used normal repository protections.
+
+Sol owns exercised claims, worker, adapter, migrations and operator wiring. Start a dedicated worktree and `codex/` branch from main containing this admission. A disjoint receiver/fixtures/test lane may begin only after Sol records stable adapter and evidence interfaces; at most two implementation lanes and one writer per shared seam. Astra owns consequential decisions, acceptance and merge. Inputs are the charter, stack decision, accepted F1/F2 and detailed F3 card. Privacy classification is public synthetic only.
+
+Deliver the full F3 contract: durable intent and guarded claim effect slot, explicit dispatch authorization, fenced work and immutable attempts/outcomes, a separate loopback receiver with its own PostgreSQL evidence, v1 idempotent retry, v2 uncertainty without resend, independent reconciliation and operator explanations. Preserve F1/F2 behavior and the public boundary. Do not substitute mocked producer state for actual separate-process receiver observations.
+
+Map every numbered F3 acceptance scenario and its subcases to executable evidence before declaring the packet complete. Include direct SQL relationship/fence tests with isolated named failures, deterministic competing-worker/crash schedules, actual receiver readback, fresh-process durability and the full regression suite. Keep the matrix in the existing handoff or milestone setup document; distinguish executed, source-reviewed and unrun evidence. A green partial suite does not establish milestone completion.
+
+Return a draft PR, exact-head PostgreSQL/process evidence, setup, remaining production gaps and reviewed public artifacts. Stop before merge or F4 implementation, or escalate a contract contradiction or two failed attempts at one approach. Mechanical choices inside the contract are delegated. No live endpoints, credentials, private V0 material or deployment configuration are authorized.
+
 ## Evidence packet and escalation
 
 Report branch, exact head, PR, changed responsibility, setup commands, resolved versions, executed tests/results, failed or unrun checks, contract coverage and open gaps. Distinguish source review from execution and local evidence from deployed qualification. Keep private operational links and source data out of this file.
@@ -59,7 +73,7 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
-- [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): verified at implementation head `de1d16681c08781c4de705c5ecc93227f41822f3`; awaiting Astra review, not merged.
+- [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): accepted and verified merged 2026-09-22 at `87526383052ebb68395fe1fe14f26f901bd5c952`; implementation and final-head evidence above.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
 - [F3 planning PR #4](https://github.com/katanada2/MediCafe-v1/pull/4): verified merged at `a5a74e2f3d4e870aaa87afd6dc20bc0233ec69c2`; planning only, runtime gate closed.
 - [F2 contract PR #3](https://github.com/katanada2/MediCafe-v1/pull/3): F2 admission decision: merging this record accepts the card and opens implementation. On main containing this record, F2 is admitted.

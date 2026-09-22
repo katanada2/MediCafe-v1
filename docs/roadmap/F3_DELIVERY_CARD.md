@@ -1,6 +1,6 @@
 # F3: durable delivery and explicit uncertainty
 
-Status: reviewed planning contract; merging this document does not admit runtime implementation. F3 runtime remains gated on Astra acceptance of F2 and review/merge of this detailed card. Planning may proceed alongside F2; do not change F2 code to implement this draft. Owner: Astra; intended delivery owner: Sol.
+Status: reviewed contract, with F2 accepted and merged through PR #6. F3 runtime is admitted only by merge of the explicit [admission record](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment); main containing that record is the entry gate. Owner: Astra; delivery owner: Sol.
 
 ## Outcome and scope
 
@@ -121,10 +121,10 @@ Record setup commands, exact head, actual process/transport evidence, suite resu
 
 ## Decisions, gaps and delivery handoff
 
-Proposed choices: exact immutable envelope reuse, explicit possible-dispatch boundary, one case-level effect slot, persisted lease fences, at most three safe preflight tries, explicit v1 idempotent retry, no v2 retry after possible dispatch, append-only late receiver observations and separate receiver PostgreSQL state.
+Accepted choices: exact immutable envelope reuse, explicit possible-dispatch boundary, one case-level effect slot, persisted lease fences, at most three safe preflight tries, explicit v1 idempotent retry, no v2 retry after possible dispatch, append-only late receiver observations and separate receiver PostgreSQL state.
 
 Rejected: reconstructing payloads from current records, changing keys/destinations on uncertainty, treating negative lookup as no effect, work queues as permission, network calls inside canonical transactions, and marking a newer revision safe merely because the older attempt is historical.
 
-Open production gaps include certified transport, real receiver identity/authentication, vendor idempotency/readback guarantees, corrections/resubmission, retry policy, alerting and deployed worker recovery. This fixture fills none of those qualification gaps. F4 still requires a reviewed lifecycle/remittance/posting/archive card after F3 acceptance.
+Open production gaps include certified transport, real receiver identity/authentication, vendor idempotency/readback guarantees, corrections/resubmission, retry policy, alerting and deployed worker recovery. This fixture fills none of those qualification gaps. The reviewed F4 lifecycle/remittance/posting/archive contract remains gated on F3 acceptance and a separate explicit runtime admission.
 
 Delivery entry requires accepted F2 evidence and this card's review/merge with an explicit admission record. Sol then owns the exercised claims/worker/adapter seam; a disjoint receiver/test lane may begin only after adapter and evidence interfaces settle. Public synthetic inputs only. At most two implementation lanes. Return a draft PR and exact-head evidence to Astra, without merge or F4 implementation. Escalate a contract contradiction or two failed attempts at one approach.
