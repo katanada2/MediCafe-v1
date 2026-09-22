@@ -1,6 +1,6 @@
 # F4: inbound outcomes and delayed archive
 
-Status: draft synthetic contract. F4 implementation remains gated on Astra acceptance of F3 and review/merge of this card with an explicit admission record. This planning draft authorizes no runtime change. Owner: Astra; intended delivery owner: Sol.
+Status: reviewed planning contract; merging this document does not admit runtime implementation. F4 implementation remains gated on Astra acceptance of F3 and review/merge of this card with an explicit admission record. This planning contract authorizes no runtime change. Owner: Astra; intended delivery owner: Sol.
 
 ## Outcome and boundary
 
