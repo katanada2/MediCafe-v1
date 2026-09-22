@@ -1,6 +1,6 @@
 # MediCafe V1
 
-The accepted F1 and F2 runtime foundations cover synthetic intake, identity review, explicit accepted services and immutable approved claim revisions. F3 durable delivery implementation is next, gated by merge of the explicit [admission record](docs/roadmap/DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment). See the [F1 setup](docs/roadmap/F1_SETUP.md) and [F2 walkthrough](docs/roadmap/F2_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
+The accepted F1 and F2 runtime foundations cover synthetic intake, identity review, explicit accepted services and immutable approved claim revisions. Astra has accepted the F3 durable-delivery runtime implementation and evidence in PR #8, subject to final documentation and normal review/merge; PR #8 is not merged. See the [F1 setup](docs/roadmap/F1_SETUP.md), [F2 walkthrough](docs/roadmap/F2_SETUP.md), and [F3 receiver/worker walkthrough](docs/roadmap/F3_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
 
 MediCafe V1 is the public planning home for a cloud-authoritative medical billing application. It is intended to become a clean, open-source application core under the `katanada2` owner while the private MediCafe repository remains the historical proving ground for workflows and operational evidence.
 
