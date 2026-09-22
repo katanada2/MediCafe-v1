@@ -111,3 +111,70 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 As of 2026-09-22, [F3 PR #8](https://github.com/katanada2/MediCafe-v1/pull/8) is accepted and verified merged at `0033e5c892a40535fb06200432cb62e68cfba69b`. Final implementation head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4` passed [run 35719081505](https://github.com/katanada2/MediCafe-v1/actions/runs/35719081505): all 149 tests in 147.898 seconds, PostgreSQL migrations, Django checks and drift verification; GitGuardian passed. All three inline review findings were resolved after focused code/regression review. This supersedes the earlier dated premerge checkpoint, whose evidence remains historical.
 
 The [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md) defines the next entry gate, claims-owned historical attribution and serialization contract, and Sol's ownership/checkpoints. Runtime starts only from main containing that merged record. Astra retains final acceptance and merge ownership. V0 production authority remains unchanged.
+
+## F4 local implementation pause checkpoint
+
+F4 implementation was admitted by merged [PR #9](https://github.com/katanada2/MediCafe-v1/pull/9)
+at `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`. Sol implemented the
+public-synthetic outcomes and delayed-archive slice on local branch
+`codex/f4-outcomes-archive`. Durable checkpoints are `684f2fa` (relationship
+design), `4801176` (outcomes foundation), `0a5ae6d` (archive workflow and
+relationship guards), and `3171ec0` (operator/process/evidence surfaces before
+this handoff clarification).
+
+The local tree provides strict lifecycle/remittance interpretation; historical
+delivery attribution; immutable accepted events and conserved posting entries;
+coherent REPEATABLE READ archive capture and lag comparison; fenced bounded
+archive attempts; independently verified readback with wrong-item conflict
+retention; authenticated target-bound operator forms; a separate loopback
+PostgreSQL archive target; setup documentation; and F1–F4 CI wiring.
+
+Executed local evidence is limited to AST parsing of 103 Python files, Django
+`manage.py check`, offline migration-state drift detection (`No changes
+detected`), and `git diff --check`, all green. The PostgreSQL-backed F4 tests and
+separate-process tests were not run locally because no configured local
+PostgreSQL service was available. No CI result or browser walkthrough is
+claimed.
+
+Publishing is also incomplete. The attempted push of
+`codex/f4-outcomes-archive` was rejected before execution by the sandbox approval
+reviewer because this turn lacked explicit user authorization to export the
+repository to its GitHub remote. No draft PR exists and no push occurred. Resume
+by obtaining explicit authorization, pushing the branch, opening a draft PR,
+and running the exact-head PostgreSQL 17 workflow.
+
+The [F4 matrix](F4_IMPLEMENTATION_MATRIX.md) lists present test-source mappings
+and the required scenarios still missing as isolated deterministic tests:
+concurrent receipt-anchor orderings, RC/RR direct-SQL overposting, capture versus
+posting snapshot races, lease/worker fence races, complete archive relationship
+classes, concurrent archive heads, and batch order/replay conflicts. F4 is not
+accepted at this pause point. No later milestone, deployment, private-data work,
+live integration, production readiness, compliance evidence, backup
+qualification, or V0 authority transfer is implied.
+
+The final bounded static review also left two concrete implementation findings
+for resume. First, the archive work SQL guard permits direct
+`finished`/`blocked` to `leased` transitions without a fresh generation; an
+expired pre-marker lease can therefore be cleared to `finished` and revived
+with the same owner/fence and a later expiry. Every transition into `leased`
+must instead originate at `pending` and increment the fence, with a direct-SQL
+regression. Second, archive adapter send-response status must be type-checked
+before set membership: a JSON array/object currently risks an unbounded
+`TypeError` rather than a stable unknown result. These are open review findings,
+not accepted behavior.
+
+Resume from this exact local workspace and ownership boundary:
+
+```powershell
+Set-Location C:\Users\danie\.codex\worktrees\a1c6\MediCafe-v1\f4
+git -c safe.directory=C:/Users/danie/.codex/worktrees/a1c6/MediCafe-v1/f4 status --short
+git -c safe.directory=C:/Users/danie/.codex/worktrees/a1c6/MediCafe-v1/f4 log -5 --oneline
+```
+
+Sol remains the sole production writer for F4; Astra owns architecture,
+acceptance, publication authorization and merge. On resume, fix only the two
+open review findings and the explicitly listed missing acceptance scenarios,
+then run the static checks and the full PostgreSQL suite. Only after explicit
+user authorization to export this repository should the branch be pushed and a
+draft PR/CI run created. Preserve the existing F1–F3 history and do not begin a
+later milestone.

@@ -165,6 +165,11 @@ or the completed draft PR/evidence packet. Sol does not merge.
 
 ## Acceptance group implementation map
 
+The table below maps present test source to the numbered groups. It is not an
+execution report, and a broad file reference does not prove every required
+subcase. PostgreSQL/process results must be recorded separately against an exact
+commit.
+
 | Group | Primary executable evidence |
 |---|---|
 | 1–2 | `tests/f4/test_outcomes.py`: strict interpretation, duplicate keys, replay, canonical money spellings and no double posting |
@@ -176,3 +181,33 @@ or the completed draft PR/evidence packet. Sol does not merge.
 | 10 | `tests/f4/test_archive.py` and `tests/f4/test_process_archive.py`: exact independent readback, send-success denial, wrong-item conflict and separate target restart |
 | 11 | `tests/f4/test_archive.py`: bounded automatic retry, pending-grant coalescing, reported-attempt preservation, immutable-unknown late confirmation and fence guard |
 | 12 | `tests/f4/test_process_archive.py`: unavailable archive leaves canonical remittance available, followed by exact recovery |
+
+### Explicit gaps at the local pause checkpoint
+
+The following card-required scenarios are not yet implemented as isolated,
+deterministic executable tests and are not covered merely by the mappings above:
+
+- both forced concurrent receiver-receipt-anchor orderings for outcome
+  acceptance;
+- READ COMMITTED and REPEATABLE READ direct-SQL competing overposting schedules;
+- a forced archive-capture versus posting snapshot/head race;
+- competing archive lease/worker fence schedules, including delayed older
+  worker completion after a newer lease;
+- the complete relationship-class direct-SQL matrix across every F4 archive
+  projection/head/receipt/authorization/item/attempt/observation/outcome link;
+- forced concurrent archive head creation/successor races and batch order/replay
+  conflict schedules.
+- archive work transition guards still permit a direct-SQL
+  `finished`/`blocked` to `leased` transition without a fresh generation, and an
+  expired pre-marker lease can be cleared to `finished` then revived with the
+  same owner/generation and a future expiry; resume by requiring every entry to
+  `leased` to originate at `pending` with an incremented fence and add a direct
+  SQL regression;
+- archive adapter send-response handling checks membership in the accepted
+  status set without first requiring a string, so a JSON array/object status can
+  raise `TypeError` instead of producing a bounded unknown result; resume with a
+  type check and malformed-response regression.
+
+The F4 PostgreSQL/process suite has not been executed locally. The branch must
+not be described as accepted or complete until these gaps are either supplied
+or explicitly waived by Astra and an exact-head fresh PostgreSQL run is green.
