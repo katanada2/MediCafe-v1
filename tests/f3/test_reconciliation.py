@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from medicafe_v1.claims.delivery_adapter import ReceiverEvidence, TransportResult
 from medicafe_v1.claims.delivery_commands import (
-    _record_evidence, reconcile_delivery, request_delivery, retry_idempotent_delivery,
+    _frozen, _record_evidence, reconcile_delivery, request_delivery,
+    retry_idempotent_delivery,
 )
 from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
 from medicafe_v1.claims.models import (
@@ -232,8 +233,13 @@ class ReconciliationEvidenceTests(F3TransactionTestCase):
             intent=intent, attempt=retry_attempt, evidence=evidence,
             origin=ReceiverObservation.ORIGIN_DISPATCH, finish_work=True,
         )
+        reconciled = reconcile_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            intent_id=requested.intent_id, adapter=ReadbackAdapter(evidence),
+        )
 
         self.assertEqual(replay.id, first.id)
+        self.assertEqual(reconciled.reason_code, "receiver_evidence_conflict")
         self.assertTrue(replay.binding_valid)
         self.assertEqual(replay.reported_attempt_id, original.id)
         self.assertEqual(
@@ -244,6 +250,69 @@ class ReconciliationEvidenceTests(F3TransactionTestCase):
         self.assertEqual(original.outcome.kind, AttemptOutcome.UNKNOWN)
         work = DeliveryWork.objects.get(intent_id=requested.intent_id)
         self.assertNotEqual(work.state, DeliveryWork.STATE_FINISHED)
+
+    def test_worker_records_unknown_for_replayed_rejection_from_original_attempt(self):
+        _, requested, original = self.uncertain_intent(version="v1")
+        receipt_id = "worker-replayed-rejection-receipt"
+        retry_idempotent_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), intent_id=requested.intent_id,
+            expected_attempt_id=original.id,
+        )
+        recorded = []
+
+        def record_original_evidence(_retry_frozen):
+            intent = DeliveryIntent.objects.select_related("claim_revision").get(
+                id=requested.intent_id
+            )
+            original_evidence = rejected_evidence(
+                _frozen(intent, original), reported_attempt_id=str(original.id),
+                receipt_id=receipt_id,
+            )
+            recorded.append(_record_evidence(
+                intent=intent, attempt=original, evidence=original_evidence,
+                origin=ReceiverObservation.ORIGIN_RECONCILIATION,
+                finish_work=False,
+            ))
+
+        class ReplayedRejectionAdapter:
+            timeout = 0.1
+
+            def validate_configuration(self, receiver_id, version):
+                return None
+
+            def send(self, frozen, *, test_mode=None):
+                return TransportResult("rejected", "receiver_rejected")
+
+            def readback(self, frozen):
+                return rejected_evidence(
+                    frozen, reported_attempt_id=str(original.id),
+                    receipt_id=receipt_id,
+                )
+
+        result = run_delivery_worker_once(
+            worker_id="worker-replayed-rejection", lease_seconds=2,
+            adapter=ReplayedRejectionAdapter(),
+            after_marker=record_original_evidence,
+        )
+
+        self.assertEqual(result.reason_code, "dispatch_outcome_unknown")
+        retry_attempt = DeliveryAttempt.objects.get(id=result.attempt_id)
+        self.assertEqual(retry_attempt.outcome.kind, AttemptOutcome.UNKNOWN)
+        self.assertEqual(retry_attempt.outcome.reason, "receiver_evidence_conflict")
+        self.assertEqual(
+            delivery_effect_state(
+                DeliveryIntent.objects.get(id=requested.intent_id)
+            ),
+            "uncertain",
+        )
+        replay = ReceiverObservation.objects.get(intent_id=requested.intent_id)
+        self.assertEqual(len(recorded), 1)
+        self.assertEqual(replay.id, recorded[0].id)
+        self.assertEqual(replay.reported_attempt_id, original.id)
+        self.assertEqual(
+            ReceiverObservation.objects.filter(intent_id=requested.intent_id).count(), 1
+        )
 
     def test_v2_unknown_has_no_retry_authority(self):
         _, requested, attempt = self.uncertain_intent(version="v2")

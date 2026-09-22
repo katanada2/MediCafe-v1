@@ -16,7 +16,9 @@ from medicafe_v1.records.queries import locked_encounter
 from medicafe_v1.sources.domain import CommandError
 
 from .delivery_adapter import LoopbackReceiverAdapter, RECEIVER_ID
-from .delivery_commands import _frozen, _record_evidence
+from .delivery_commands import (
+    _frozen, _observation_valid_for_attempt, _record_evidence,
+)
 from .models import (
     AttemptOutcome,
     Claim,
@@ -367,7 +369,7 @@ def run_delivery_worker_once(*, worker_id=None, lease_seconds=10, adapter=None,
             intent=intent, attempt=attempt, evidence=evidence,
             origin="dispatch_readback", finish_work=False,
         )
-        if observation.binding_valid:
+        if _observation_valid_for_attempt(observation=observation, attempt=attempt):
             _finish_with_token(
                 work=attempt.work, worker_id=worker_id, generation=generation,
                 state=DeliveryWork.STATE_FINISHED, reason="",

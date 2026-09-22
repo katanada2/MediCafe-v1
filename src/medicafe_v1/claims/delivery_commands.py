@@ -429,6 +429,18 @@ def _frozen(intent, attempt):
     )
 
 
+def _observation_valid_for_attempt(*, observation, attempt):
+    if not observation.binding_valid:
+        return False
+    if observation.observed_state == ReceiverObservation.STATE_ACCEPTED:
+        return True
+    return (
+        observation.observed_state == ReceiverObservation.STATE_REJECTED
+        and observation.reported_attempt_id == attempt.id
+        and observation.no_acceptance_guaranteed
+    )
+
+
 def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
     payload = bytes(intent.claim_revision.envelope_bytes)
     common_valid = (
@@ -519,7 +531,9 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
             if observation is None:
                 raise
     observation.refresh_from_db()
-    valid_for_attempt = observation.binding_valid and binding_valid
+    valid_for_attempt = _observation_valid_for_attempt(
+        observation=observation, attempt=attempt
+    )
     if valid_for_attempt and not hasattr(attempt, "outcome"):
         kind = (
             AttemptOutcome.RECEIVER_ACCEPTED
@@ -573,7 +587,8 @@ def reconcile_delivery(*, actor, organization_id, intent_id, adapter=None):
             origin=ReceiverObservation.ORIGIN_RECONCILIATION,
         )
     reason = (
-        "receiver_evidence_recorded" if observation.binding_valid
+        "receiver_evidence_recorded"
+        if _observation_valid_for_attempt(observation=observation, attempt=locked_attempt)
         else "receiver_evidence_conflict"
     )
     return DeliveryCommandResult(
