@@ -23,4 +23,6 @@ Work is coordinated through bounded assignments: Astra owns architecture and con
 
 - [F2: accepted services and approved claim revisions](F2_SERVICE_CLAIM_CARD.md) defines the service, claim, approval and concurrency interfaces accepted by merge of PR #3. Main containing that card admits F2 implementation.
 
-- [F3 durable delivery and uncertainty draft](F3_DELIVERY_CARD.md) defines the proposed effect boundary and independent receiver evidence. F3 runtime remains gated on accepted F2 evidence and an explicit reviewed admission record.
+- [F3 durable delivery and uncertainty contract](F3_DELIVERY_CARD.md) defines the reviewed effect boundary and independent receiver evidence. F3 runtime remains gated on accepted F2 evidence and an explicit reviewed admission record.
+
+- [F4 inbound outcomes and delayed archive contract](F4_OUTCOMES_ARCHIVE_CARD.md) defines synthetic attribution, conserved postings and independent archive readback. F4 runtime remains gated on accepted F3 evidence and an explicit reviewed admission record.
