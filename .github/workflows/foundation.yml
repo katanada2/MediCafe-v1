@@ -1,4 +1,4 @@
-name: F1 foundation
+name: F1 and F2 foundation
 
 on:
   pull_request:
@@ -46,4 +46,4 @@ jobs:
       - run: uv run python manage.py migrate --noinput
       - run: uv run python manage.py check
       - run: uv run python manage.py makemigrations --check --dry-run
-      - run: uv run python manage.py test tests.f1 --verbosity 2
+      - run: uv run python manage.py test tests.f1 tests.f2 --verbosity 2

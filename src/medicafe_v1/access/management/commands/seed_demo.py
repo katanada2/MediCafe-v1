@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from medicafe_v1.access.models import Membership, Organization, User
+from medicafe_v1.claims.commands import initialize_synthetic_policy
 
 
 class Command(BaseCommand):
@@ -27,10 +28,10 @@ class Command(BaseCommand):
             elif supplied:
                 raise CommandError(f"Refusing to replace the existing {label} operator password")
             Membership.objects.get_or_create(organization=organization, user=user, defaults={"is_active": True})
+            initialize_synthetic_policy(actor=user, organization_id=organization.id)
         for username, password, generated in credentials:
             if generated:
                 self.stdout.write(f"Generated one-time local credential for {username}: {password}")
             else:
                 self.stdout.write(f"Created {username} with the supplied password")
         self.stdout.write(self.style.SUCCESS("Synthetic organizations and isolated memberships are ready."))
-
