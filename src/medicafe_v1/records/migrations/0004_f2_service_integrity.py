@@ -4,6 +4,8 @@ from django.db import migrations
 FORWARD_SQL = r"""
 ALTER TABLE records_identitydecision ADD CONSTRAINT records_decision_service_target_uniq
   UNIQUE (organization_id, patient_id, encounter_id, observation_id, id);
+ALTER TABLE records_identitydecision ADD CONSTRAINT records_decision_service_identity_uniq
+  UNIQUE (organization_id, patient_id, encounter_id, id);
 ALTER TABLE records_servicerevision ADD CONSTRAINT records_srev_line_target_uniq
   UNIQUE (organization_id, service_id, encounter_id, patient_id, id);
 
@@ -179,6 +181,7 @@ ALTER TABLE records_servicerevision DROP CONSTRAINT IF EXISTS records_srev_servi
 ALTER TABLE records_service DROP CONSTRAINT IF EXISTS records_service_decision_target_fk;
 ALTER TABLE records_service DROP CONSTRAINT IF EXISTS records_service_encounter_patient_fk;
 ALTER TABLE records_servicerevision DROP CONSTRAINT IF EXISTS records_srev_line_target_uniq;
+ALTER TABLE records_identitydecision DROP CONSTRAINT IF EXISTS records_decision_service_identity_uniq;
 ALTER TABLE records_identitydecision DROP CONSTRAINT IF EXISTS records_decision_service_target_uniq;
 """
 
