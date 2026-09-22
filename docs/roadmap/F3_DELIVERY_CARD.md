@@ -1,6 +1,6 @@
 # F3: durable delivery and explicit uncertainty
 
-Status: draft architecture contract. F3 runtime remains gated on Astra acceptance of F2 and review/merge of this detailed card. Planning may proceed alongside F2; do not change F2 code to implement this draft. Owner: Astra; intended delivery owner: Sol.
+Status: reviewed planning contract; merging this document does not admit runtime implementation. F3 runtime remains gated on Astra acceptance of F2 and review/merge of this detailed card. Planning may proceed alongside F2; do not change F2 code to implement this draft. Owner: Astra; intended delivery owner: Sol.
 
 ## Outcome and scope
 
