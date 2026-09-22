@@ -1,6 +1,6 @@
 # Foundation work cards
 
-Status: F1 admitted for synthetic implementation after this planning milestone merges. F2-F4 are ordered milestone contracts; their detailed policy/interface cards require Astra review before implementation. No live external effect or real data is admitted.
+Status: F1 is accepted. Merge of PR #3 admits F2 under its detailed card; on main containing that card, F2 implementation may proceed. F3-F4 remain gated milestone contracts requiring detailed policy/interface review. No live external effect or real data is admitted.
 
 Read the [charter](../architecture/CHARTER.md) and [stack decision](../decisions/0001-foundation-stack.md). Sol owns delivery; Astra owns architectural exceptions and acceptance.
 
@@ -87,7 +87,7 @@ Stop after the F1 PR and evidence packet. Astra reviews before merge and before 
 
 ## F2: accepted services and approved claim revision
 
-Detailed contract: [F2 service and claim card](F2_SERVICE_CLAIM_CARD.md). F1 is accepted; F2 runtime entry requires review and merge of that detailed card.
+Detailed contract: [F2 service and claim card](F2_SERVICE_CLAIM_CARD.md). F1 is accepted; merge of PR #3 admits F2 implementation under that detailed card.
 
 Entry: Astra accepts F1 evidence and a detailed service/claim card. Build accepted corrections with provenance, bounded synthetic service policy, Decimal amounts and currency, exact line membership, immutable claim revisions and revision-scoped approvals. Material service/policy changes invalidate prior approval. No clinical inference or live claim payload assertion.
 
