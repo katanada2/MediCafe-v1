@@ -7,6 +7,7 @@ from medicafe_v1.records.queries import service_dependencies
 from medicafe_v1.sources.domain import CommandError
 
 from .models import Claim, ClaimApproval, ClaimRevision, SyntheticPolicySelection
+from .policies import POLICIES
 
 
 BLOCKER_ORDER = (
@@ -82,6 +83,9 @@ def _revision_envelope_valid(*, actor, revision, lines):
         return False
     if len(dependencies) != len(lines) or not 1 <= len(lines) <= 100:
         return False
+    allowed_codes = POLICIES.get(revision.policy_version)
+    if allowed_codes is None:
+        return False
     if [line.ordinal for line in lines] != list(range(1, len(lines) + 1)):
         return False
     total = 0
@@ -95,6 +99,7 @@ def _revision_envelope_valid(*, actor, revision, lines):
             or line.unit_amount != dependency.unit_amount
             or line.currency != dependency.currency
             or line.line_amount != expected_amount
+            or line.code not in allowed_codes
         ):
             return False
         total += expected_amount

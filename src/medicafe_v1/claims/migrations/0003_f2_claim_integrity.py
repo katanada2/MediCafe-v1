@@ -146,7 +146,11 @@ BEGIN
     RAISE EXCEPTION 'policy identity immutable' USING ERRCODE='55000';
   END IF;
   IF NEW.version = OLD.version THEN
-    IF NEW.activation_generation <> OLD.activation_generation THEN RAISE EXCEPTION 'same policy cannot change generation' USING ERRCODE='23514'; END IF;
+    IF NEW.activation_generation <> OLD.activation_generation
+       OR NEW.selected_by_id IS DISTINCT FROM OLD.selected_by_id
+       OR NEW.selected_at IS DISTINCT FROM OLD.selected_at THEN
+      RAISE EXCEPTION 'same policy selection is immutable' USING ERRCODE='23514';
+    END IF;
   ELSIF NEW.activation_generation <> OLD.activation_generation + 1 THEN
     RAISE EXCEPTION 'policy change must increment generation' USING ERRCODE='23514';
   END IF;

@@ -5,8 +5,9 @@ from django.shortcuts import redirect, render
 
 from medicafe_v1.access.services import AuthorizationError, require_active_membership
 from medicafe_v1.records.commands import accept_service, revise_service
-from medicafe_v1.records.models import IdentityDecision
-from medicafe_v1.records.queries import current_services_for_encounter, service_detail
+from medicafe_v1.records.queries import (
+    current_services_for_encounter, identity_evidence_for_encounter, service_detail,
+)
 from medicafe_v1.sources.domain import CommandError
 
 from .commands import approve_claim_revision, prepare_claim_revision, select_synthetic_policy
@@ -19,17 +20,17 @@ from .queries import claim_actionability, claim_detail, claim_for_encounter
 
 
 def _decisions(actor, organization_id, encounter_id):
-    # Admission is established by the records-owned active-membership query first.
-    list(current_services_for_encounter(
+    return identity_evidence_for_encounter(
         actor=actor, organization_id=organization_id, encounter_id=encounter_id
-    ))
-    return IdentityDecision.objects.filter(
-        organization_id=organization_id, encounter_id=encounter_id
-    ).select_related("observation").order_by("decided_at")
+    )
 
 
 def _decision_choices(decisions):
-    return [(str(item.id), f"row {item.observation.row_ordinal}: {item.reason}") for item in decisions]
+    return [(
+        str(item.id),
+        f"row {item.observation.row_ordinal} at {item.observation.source_locator}: "
+        f"patient {item.patient_id}, encounter {item.encounter_id}; {item.reason}",
+    ) for item in decisions]
 
 
 @login_required
@@ -69,7 +70,7 @@ def encounter_services(request, organization_id, encounter_id):
     )
     return render(request, "claims/encounter_services.html", {
         "organization_id": organization_id, "encounter_id": encounter_id,
-        "services": services, "form": form, "claim": claim,
+        "services": services, "form": form, "claim": claim, "decisions": decisions,
     })
 
 

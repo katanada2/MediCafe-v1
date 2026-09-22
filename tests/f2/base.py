@@ -7,7 +7,7 @@ import uuid
 from medicafe_v1.claims.commands import initialize_synthetic_policy
 from medicafe_v1.records.commands import ResolutionIntent, accept_service, resolve_identity
 
-from tests.f1.base import F1TestCase
+from tests.f1.base import F1TestCase, F1TransactionTestCase
 from tests.fixtures.synthetic_inputs import csv_bytes, synthetic_rows
 
 
@@ -63,4 +63,14 @@ class F2TestCase(F1TestCase):
             currency=currency,
             reason=reason,
             artifact_store=self.store,
+        )
+
+
+class F2TransactionTestCase(F1TransactionTestCase):
+    """F2 fixture setup without TestCase's outer transaction for race tests."""
+
+    def setUp(self):
+        super().setUp()
+        self.policy = initialize_synthetic_policy(
+            actor=self.alpha_user, organization_id=self.alpha.id
         )

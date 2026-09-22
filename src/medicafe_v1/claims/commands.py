@@ -104,10 +104,18 @@ def select_synthetic_policy(*, actor, organization_id, request_id, expected_vers
     request_uuid = _uuid_text(request_id, "request_uuid_invalid")
     if version not in POLICIES or expected_version not in POLICIES:
         raise CommandError("policy_version_unsupported")
+    if isinstance(expected_generation, (bool, float)):
+        raise CommandError("policy_generation_invalid")
     try:
         generation = int(expected_generation)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise CommandError("policy_generation_invalid") from exc
+    if (
+        generation < 1
+        or (isinstance(expected_generation, str) and not expected_generation.strip().isdigit())
+        or (not isinstance(expected_generation, str) and expected_generation != generation)
+    ):
+        raise CommandError("policy_generation_invalid")
     payload = {
         "organization": _uuid_text(organization_id, "organization_invalid"),
         "command_kind": "select_synthetic_policy", "expected_version": expected_version,

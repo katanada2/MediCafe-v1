@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from medicafe_v1.access.services import require_active_membership
 from medicafe_v1.sources.domain import CommandError
 
-from .models import Encounter, PatientAlias, Service, ServiceRevision
+from .models import Encounter, IdentityDecision, PatientAlias, Service, ServiceRevision
 
 
 @dataclass(frozen=True)
@@ -102,3 +102,13 @@ def service_dependencies(*, actor, organization_id, encounter_id, selections):
             service.current_revision_id, service.current_revision.disposition,
         ))
     return dependencies
+
+
+def identity_evidence_for_encounter(*, actor, organization_id, encounter_id):
+    """Return accepted identity/evidence rows scoped by the records owner."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    return IdentityDecision.objects.filter(
+        organization_id=organization_id, encounter_id=encounter_id
+    ).select_related(
+        "observation", "patient", "encounter"
+    ).order_by("decided_at", "id")

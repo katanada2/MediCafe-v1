@@ -153,13 +153,17 @@ def _reason(value):
 def _economics(code, units, unit_amount, currency):
     if code not in SERVICE_CODES:
         raise CommandError("service_code_unsupported")
-    if isinstance(units, bool):
+    if isinstance(units, (bool, float)):
         raise CommandError("service_units_invalid")
     try:
         normalized_units = int(units)
     except (TypeError, ValueError) as exc:
         raise CommandError("service_units_invalid") from exc
-    if str(normalized_units) != str(units).strip() or not 1 <= normalized_units <= 100:
+    if (
+        not 1 <= normalized_units <= 100
+        or (isinstance(units, str) and not units.strip().isdigit())
+        or (not isinstance(units, str) and units != normalized_units)
+    ):
         raise CommandError("service_units_invalid")
     if isinstance(unit_amount, float):
         raise CommandError("service_amount_invalid")

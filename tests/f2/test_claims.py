@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from decimal import Decimal
 from unittest.mock import patch
@@ -13,7 +14,13 @@ from medicafe_v1.claims.commands import (
     select_synthetic_policy,
 )
 from medicafe_v1.claims.models import ClaimRevision, ClaimsCommandReceipt
-from medicafe_v1.claims.queries import claim_actionability, claim_detail
+from medicafe_v1.claims.queries import (
+    _revision_envelope_valid,
+    claim_actionability,
+    claim_detail,
+    envelope_payload,
+    serialize_payload,
+)
 from medicafe_v1.records.commands import revise_service
 from medicafe_v1.records.models import ServiceRevision
 from medicafe_v1.sources.domain import CommandError
@@ -235,6 +242,177 @@ class ClaimCommandTests(F2TestCase):
                 version="synthetic-v2",
             )
         self.assertEqual(stale_selection.exception.reason_code, "policy_selection_conflict")
+
+    def test_prepare_replay_reports_current_service_and_policy_blockers(self):
+        _delivery, observation, resolved, service, _unused = self._two_services(
+            note="SYNTHETIC_F2_PREPARE_REPLAY_BLOCKERS"
+        )
+        prepare_request = uuid.uuid4()
+        prepared = prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=prepare_request,
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=None,
+            selected_service_revision_ids=[service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic replay blocker revision",
+        )
+        corrected = revise_service(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            service_id=service.service_id,
+            expected_revision_id=service.revision_id,
+            evidence_observation_id=observation.id,
+            disposition="accepted",
+            code="SYN-A",
+            units=1,
+            unit_amount=Decimal("7.00"),
+            currency="USD",
+            reason="Synthetic replay blocker correction",
+            artifact_store=self.store,
+        )
+        self.assertNotEqual(corrected.revision_id, service.revision_id)
+        policy = select_synthetic_policy(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            expected_version="synthetic-v1",
+            expected_generation=1,
+            version="synthetic-v2",
+        )
+        self.assertEqual(policy.policy_generation, 2)
+
+        replay = prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=prepare_request,
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=None,
+            selected_service_revision_ids=[service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic replay blocker revision",
+        )
+        self.assertEqual(replay.reason_code, "claim_request_replayed")
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.claim_id, prepared.claim_id)
+        self.assertEqual(replay.revision_id, prepared.revision_id)
+        self.assertEqual(replay.blockers, (
+            "selected_service_changed",
+            "policy_changed",
+            "unapproved",
+        ))
+
+    def test_envelope_validator_rejects_snapshot_arithmetic_and_total_mismatch(self):
+        _delivery, _observation, resolved, service, _unused = self._two_services(
+            note="SYNTHETIC_F2_ENVELOPE_MISMATCH"
+        )
+        prepared = prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=None,
+            selected_service_revision_ids=[service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic envelope validator baseline",
+        )
+        baseline = ClaimRevision.objects.get(pk=prepared.revision_id)
+        baseline_lines = list(baseline.lines.order_by("ordinal"))
+        self.assertTrue(_revision_envelope_valid(
+            actor=self.alpha_user, revision=baseline, lines=baseline_lines
+        ))
+
+        snapshot_revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        snapshot_lines = list(snapshot_revision.lines.order_by("ordinal"))
+        snapshot_lines[0].code = "SYN-B"
+        snapshot_bytes = serialize_payload(envelope_payload(snapshot_revision, snapshot_lines))
+        snapshot_revision.envelope_bytes = snapshot_bytes
+        snapshot_revision.envelope_digest = hashlib.sha256(snapshot_bytes).hexdigest()
+        self.assertFalse(_revision_envelope_valid(
+            actor=self.alpha_user, revision=snapshot_revision, lines=snapshot_lines
+        ))
+
+        arithmetic_revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        arithmetic_lines = list(arithmetic_revision.lines.order_by("ordinal"))
+        arithmetic_lines[0].line_amount += Decimal("0.01")
+        arithmetic_bytes = serialize_payload(envelope_payload(arithmetic_revision, arithmetic_lines))
+        arithmetic_revision.envelope_bytes = arithmetic_bytes
+        arithmetic_revision.envelope_digest = hashlib.sha256(arithmetic_bytes).hexdigest()
+        self.assertFalse(_revision_envelope_valid(
+            actor=self.alpha_user, revision=arithmetic_revision, lines=arithmetic_lines
+        ))
+
+        total_revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        total_lines = list(total_revision.lines.order_by("ordinal"))
+        total_revision.total_amount += Decimal("0.01")
+        total_bytes = serialize_payload(envelope_payload(total_revision, total_lines))
+        total_revision.envelope_bytes = total_bytes
+        total_revision.envelope_digest = hashlib.sha256(total_bytes).hexdigest()
+        self.assertFalse(_revision_envelope_valid(
+            actor=self.alpha_user, revision=total_revision, lines=total_lines
+        ))
+
+    def test_same_request_uuid_conflicts_across_command_kinds(self):
+        _delivery, observation, resolved = self.resolved_observation(
+            note="SYNTHETIC_F2_REQUEST_NAMESPACE"
+        )
+        service_request = uuid.uuid4()
+        service = self.accepted_service(
+            resolved,
+            observation,
+            request_id=service_request,
+            code="SYN-A",
+            units=1,
+            unit_amount=Decimal("4.00"),
+            reason="Synthetic request namespace service",
+        )
+        with self.assertRaises(CommandError) as service_kind_conflict:
+            revise_service(
+                actor=self.alpha_user,
+                organization_id=self.alpha.id,
+                request_id=service_request,
+                service_id=service.service_id,
+                expected_revision_id=service.revision_id,
+                evidence_observation_id=observation.id,
+                disposition="accepted",
+                code="SYN-A",
+                units=1,
+                unit_amount=Decimal("4.00"),
+                currency="USD",
+                reason="Synthetic same UUID different records command",
+                artifact_store=self.store,
+            )
+        self.assertEqual(service_kind_conflict.exception.reason_code, "request_input_conflict")
+        self.assertEqual(ServiceRevision.objects.filter(service_id=service.service_id).count(), 1)
+
+        claim_request = uuid.uuid4()
+        prepared = prepare_claim_revision(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=claim_request,
+            encounter_id=resolved.encounter_id,
+            expected_claim_revision_id=None,
+            selected_service_revision_ids=[service.revision_id],
+            route_id="synthetic-receiver",
+            route_version="v1",
+            reason="Synthetic request namespace claim",
+        )
+        revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        with self.assertRaises(CommandError) as claims_kind_conflict:
+            approve_claim_revision(
+                actor=self.alpha_user,
+                organization_id=self.alpha.id,
+                request_id=claim_request,
+                claim_revision_id=revision.id,
+                expected_envelope_digest=revision.envelope_digest,
+            )
+        self.assertEqual(claims_kind_conflict.exception.reason_code, "request_input_conflict")
+        self.assertEqual(revision.approvals.count(), 0)
 
     def test_actionability_returns_all_blockers_in_fixed_order(self):
         delivery, observation, resolved = self.resolved_observation(

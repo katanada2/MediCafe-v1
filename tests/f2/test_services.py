@@ -266,3 +266,72 @@ class ServiceCommandTests(F2TestCase):
                 organization_id=self.alpha.id,
                 encounter_id=alpha_resolved.encounter_id,
             ))
+
+    def test_revise_replay_survives_missing_artifact_but_new_correction_fails_closed(self):
+        delivery, observation, resolved = self.resolved_observation(
+            note="SYNTHETIC_F2_REVISE_REPLAY_ARTIFACT"
+        )
+        accepted = self.accepted_service(
+            resolved,
+            observation,
+            code="SYN-A",
+            units=1,
+            unit_amount=Decimal("4.00"),
+            reason="Synthetic artifact replay service",
+        )
+        correction_request = uuid.uuid4()
+        corrected = revise_service(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=correction_request,
+            service_id=accepted.service_id,
+            expected_revision_id=accepted.revision_id,
+            evidence_observation_id=observation.id,
+            disposition="accepted",
+            code="SYN-B",
+            units=2,
+            unit_amount=Decimal("2.50"),
+            currency="USD",
+            reason="Synthetic first correction",
+            artifact_store=self.store,
+        )
+        artifact_path = self.store.root / delivery.artifact.storage_key
+        artifact_path.unlink()
+
+        replay = revise_service(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=correction_request,
+            service_id=accepted.service_id,
+            expected_revision_id=accepted.revision_id,
+            evidence_observation_id=observation.id,
+            disposition="accepted",
+            code="SYN-B",
+            units=2,
+            unit_amount="2.50",
+            currency="USD",
+            reason="Synthetic first correction",
+            artifact_store=self.store,
+        )
+        self.assertEqual(replay.reason_code, "service_request_replayed")
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.revision_id, corrected.revision_id)
+
+        with self.assertRaises(CommandError) as unavailable:
+            revise_service(
+                actor=self.alpha_user,
+                organization_id=self.alpha.id,
+                request_id=uuid.uuid4(),
+                service_id=accepted.service_id,
+                expected_revision_id=corrected.revision_id,
+                evidence_observation_id=observation.id,
+                disposition="accepted",
+                code="SYN-A",
+                units=1,
+                unit_amount="8.00",
+                currency="USD",
+                reason="Synthetic correction after artifact loss",
+                artifact_store=self.store,
+            )
+        self.assertEqual(unavailable.exception.reason_code, "artifact_unavailable")
+        self.assertEqual(ServiceRevision.objects.filter(service_id=accepted.service_id).count(), 2)
