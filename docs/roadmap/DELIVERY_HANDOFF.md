@@ -31,13 +31,15 @@ Return a draft PR and evidence packet to Astra. Do not merge or begin F3. Mechan
 
 ## F2 implementation evidence
 
-Implementation branch `codex/f2-service-claims`, [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6), was delivered through task `01a09b4c-b9cb-7f83-bc7b-2dbd2c3b717d`. Verified implementation head `5360be892c0d6176345360815ceb07137df2e6b1` is rebased on merged F3/F4 planning baseline `8973724df9e36ae3f27538b9e51316152e518dfd`.
+Implementation branch `codex/f2-service-claims`, [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6), was delivered through task `01a09b4c-b9cb-7f83-bc7b-2dbd2c3b717d`. Verified implementation head `de1d16681c08781c4de705c5ecc93227f41822f3` is rebased on merged F3/F4 planning baseline `8973724df9e36ae3f27538b9e51316152e518dfd`.
 
-[PostgreSQL run 35695464429](https://github.com/katanada2/MediCafe-v1/actions/runs/35695464429) passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift detection and all 63 F1+F2 tests in 49.817 seconds. GitGuardian passed on the same head.
+[PostgreSQL run 35697177174](https://github.com/katanada2/MediCafe-v1/actions/runs/35697177174) passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift detection and all 68 F1+F2 tests in 54.249 seconds. GitGuardian passed on the same head.
 
 The evidence covers the ten F2 card groups: append-only service acceptance/correction/exclusion/reinstatement with evidence provenance; canonical retries and a shared request namespace; deterministic ordered claim snapshots and bounded arithmetic; immutable envelopes and restart durability; generation-bound policy compare-and-set; historical approval with fixed-order current actionability; PostgreSQL relationship, history, head and receipt constraints; tenant, inactive-membership and CSRF denial; serialized competing corrections/preparations/approvals/policy changes including a forced lock-order schedule; and authenticated CSV/DOCX operator flows, redaction, invalid-selection atomicity, maximum-size cases and setup paths.
 
-The final edge matrix explicitly exercises policy no-op replay after later activations, same-version policy return without approval revival, equal-valued selected-service correction invalidation, corrected reuse of a rejected request UUID, wrong or unresolved same-organization evidence, and named wrong-aggregate/patient/encounter database constraints. Failed intermediate run 35695248247 had 62 of 63 tests pass and exposed a fixture that collided with a uniqueness constraint before reaching the intended service/revision composite constraint; the fixture was corrected and the named target constraint passed in run 35695464429.
+The final edge matrix explicitly exercises policy no-op replay after later activations, same-version policy return without approval revival, equal-valued selected-service correction invalidation, corrected reuse of a rejected request UUID, wrong or unresolved same-organization evidence, and named wrong-aggregate/patient/encounter database constraints. It also proves that claim lines can be inserted only while a revision is under construction, current/approved/historical revisions are sealed, cross-member request races converge without raw integrity errors, correction forms preserve the current evidence decision, and an approval POST cannot substitute another claim's revision while exact same-claim historical replay remains available. Failed intermediate run 35695248247 had 62 of 63 tests pass and exposed a fixture that collided with a uniqueness constraint before reaching the intended service/revision composite constraint; the fixture was corrected before the later green runs.
+
+Of four final automated-review findings, three required bounded corrections: construction-only line insertion, current-evidence form initialization and claim/revision presentation binding. The proposed cross-member receipt race was refuted by the existing shared-organization lock and is now covered by a two-member, two-encounter concurrency test that yields one mutation and receipt plus one domain conflict, without a raw integrity error.
 
 This is public-synthetic repository and PostgreSQL integration evidence. It is not a manual browser walkthrough, deployed qualification, real payer interoperability, production readiness, compliance evidence or authority transfer from V0. No external dispatch exists, and F3/F4 runtime remains out of scope.
 
@@ -57,7 +59,7 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
-- [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): verified at implementation head `5360be892c0d6176345360815ceb07137df2e6b1`; awaiting Astra review, not merged.
+- [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): verified at implementation head `de1d16681c08781c4de705c5ecc93227f41822f3`; awaiting Astra review, not merged.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
 - [F3 planning PR #4](https://github.com/katanada2/MediCafe-v1/pull/4): verified merged at `a5a74e2f3d4e870aaa87afd6dc20bc0233ec69c2`; planning only, runtime gate closed.
 - [F2 contract PR #3](https://github.com/katanada2/MediCafe-v1/pull/3): F2 admission decision: merging this record accepts the card and opens implementation. On main containing this record, F2 is admitted.
