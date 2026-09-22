@@ -21,6 +21,10 @@ CREATE TABLE claims_receiverreceiptidentity (
   PRIMARY KEY (receiver_id, receiver_version, receipt_id)
 );
 
+CREATE TRIGGER claims_receiverreceiptidentity_immutable
+  BEFORE UPDATE OR DELETE ON claims_receiverreceiptidentity
+  FOR EACH ROW EXECUTE FUNCTION claims_f3_reject_history_change();
+
 CREATE FUNCTION claims_f3_observation_guard_v2() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE intent_row claims_deliveryintent%ROWTYPE; revision_bytes bytea; receipt_conflict boolean;
 BEGIN
@@ -271,6 +275,7 @@ DROP TRIGGER IF EXISTS claims_attempt_admission ON claims_deliveryattempt;
 DROP TRIGGER IF EXISTS claims_receipt_f3_binding ON claims_claimscommandreceipt;
 DROP TRIGGER IF EXISTS claims_intent_shape ON claims_deliveryintent;
 DROP TRIGGER IF EXISTS claims_observation_admission ON claims_receiverobservation;
+DROP TRIGGER IF EXISTS claims_receiverreceiptidentity_immutable ON claims_receiverreceiptidentity;
 CREATE TRIGGER claims_attempt_admission BEFORE INSERT ON claims_deliveryattempt
   FOR EACH ROW EXECUTE FUNCTION claims_f3_attempt_guard();
 CREATE TRIGGER claims_outcome_admission BEFORE INSERT ON claims_attemptoutcome

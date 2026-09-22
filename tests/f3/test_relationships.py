@@ -399,6 +399,56 @@ class F3RelationshipSQLTests(F3FixtureMixin, F2TransactionTestCase):
         self.assertEqual(observation.observed_state, ReceiverObservation.STATE_CONFLICT)
         self.assertEqual(observation.conflict_reason, "binding_mismatch")
 
+    def test_receiver_receipt_identity_anchor_rejects_update_and_delete(self):
+        self._lease_work()
+        attempt = self._attempt()
+        observation = self._observation(
+            attempt, receipt_id="synthetic-immutable-receipt-anchor",
+        )
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT evidence_fingerprint FROM claims_receiverreceiptidentity
+                WHERE receiver_id=%s AND receiver_version=%s AND receipt_id=%s
+            """, (
+                observation.receiver_id, observation.receiver_version,
+                observation.receipt_id,
+            ))
+            original_fingerprint = cursor.fetchone()[0]
+
+        for operation in ("update", "delete"):
+            with self.subTest(operation=operation):
+                with self.assertRaisesMessage(DatabaseError, "immutable F3 claims row"):
+                    with transaction.atomic():
+                        with connection.cursor() as cursor:
+                            if operation == "update":
+                                cursor.execute("""
+                                    UPDATE claims_receiverreceiptidentity
+                                    SET evidence_fingerprint=%s
+                                    WHERE receiver_id=%s AND receiver_version=%s
+                                      AND receipt_id=%s
+                                """, (
+                                    "f" * 64, observation.receiver_id,
+                                    observation.receiver_version, observation.receipt_id,
+                                ))
+                            else:
+                                cursor.execute("""
+                                    DELETE FROM claims_receiverreceiptidentity
+                                    WHERE receiver_id=%s AND receiver_version=%s
+                                      AND receipt_id=%s
+                                """, (
+                                    observation.receiver_id, observation.receiver_version,
+                                    observation.receipt_id,
+                                ))
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT evidence_fingerprint FROM claims_receiverreceiptidentity
+                        WHERE receiver_id=%s AND receiver_version=%s AND receipt_id=%s
+                    """, (
+                        observation.receiver_id, observation.receiver_version,
+                        observation.receipt_id,
+                    ))
+                    self.assertEqual(cursor.fetchone()[0], original_fingerprint)
+
     def test_rejected_outcome_cannot_use_another_attempts_evidence(self):
         self._lease_work(owner="relationship-worker-one", generation=1)
         first = self._attempt(
