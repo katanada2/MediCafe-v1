@@ -134,7 +134,8 @@ class F2AcceptanceTests(F2TestCase):
         detail = client.get(claim_url)
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "Approved for current synthetic inputs")
-        self.assertContains(detail, "Synthetic and unsent")
+        self.assertContains(detail, "Synthetic only")
+        self.assertContains(detail, "not payer submission or payment approval")
         self.assertEqual(ClaimApproval.objects.filter(claim_revision=revision).count(), 1)
         return delivery, observation, decision, service, claim, revision
 

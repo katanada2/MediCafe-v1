@@ -326,6 +326,9 @@ class ReceiverHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/health" and not parsed.query:
+            self._respond(200, {"status": "ready"})
+            return
         version = self._version()
         parts = parsed.path.strip("/").split("/")
         if version is None or len(parts) != 4 or parts[1] != "receipts":

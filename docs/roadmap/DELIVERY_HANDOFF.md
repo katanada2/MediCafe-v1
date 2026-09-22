@@ -73,6 +73,8 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
+- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): open draft; initial incomplete checkpoint `a05bc56` passed fresh F3 migrations, Django check and migration drift in PostgreSQL 17 run `35707231481`, while one pre-F3 presentation assertion failed and is corrected in the next checkpoint. This is not F3 acceptance evidence.
+- [F3 admission PR #7](https://github.com/katanada2/MediCafe-v1/pull/7): verified merged 2026-09-22 at `07bad8f39a631ced75b1f5df829c3a6cbb84d09e`; admits the public-synthetic F3 implementation assignment above without admitting F4.
 - [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): accepted and verified merged 2026-09-22 at `87526383052ebb68395fe1fe14f26f901bd5c952`; implementation and final-head evidence above.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
 - [F3 planning PR #4](https://github.com/katanada2/MediCafe-v1/pull/4): verified merged at `a5a74e2f3d4e870aaa87afd6dc20bc0233ec69c2`; planning only, runtime gate closed.

@@ -7,8 +7,9 @@ from medicafe_v1.records.queries import service_dependencies
 from medicafe_v1.sources.domain import CommandError
 
 from .models import (
-    AttemptOutcome, Claim, ClaimApproval, ClaimRevision, ClaimsCommandReceipt,
-    DeliveryIntent, DeliveryWork, ReceiverObservation, SyntheticPolicySelection,
+    AttemptOutcome, Claim, ClaimApproval, ClaimDeliveryControl, ClaimRevision,
+    ClaimsCommandReceipt, DeliveryIntent, DeliveryWork, ReceiverObservation,
+    SyntheticPolicySelection,
 )
 from .policies import POLICIES
 
@@ -132,6 +133,14 @@ def delivery_for_revision(*, actor, organization_id, claim_revision_id):
     return DeliveryIntent.objects.filter(
         organization_id=organization_id, claim_revision_id=claim_revision_id
     ).first()
+
+
+def delivery_for_claim(*, actor, organization_id, claim_id):
+    require_active_membership(actor=actor, organization_id=organization_id)
+    control = ClaimDeliveryControl.objects.select_related("current_intent").filter(
+        organization_id=organization_id, claim_id=claim_id
+    ).first()
+    return control.current_intent if control else None
 
 
 def _money(value):

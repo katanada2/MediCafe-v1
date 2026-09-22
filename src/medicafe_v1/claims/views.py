@@ -27,6 +27,7 @@ from .queries import (
     claim_for_encounter,
     claim_revision_for_claim,
     delivery_detail,
+    delivery_for_claim,
     delivery_for_revision,
 )
 
@@ -241,11 +242,14 @@ def claim_review(request, organization_id, claim_id):
         actor=request.user, organization_id=organization_id,
         claim_revision_id=current.id,
     )
+    case_delivery = delivery_for_claim(
+        actor=request.user, organization_id=organization_id, claim_id=claim.id
+    )
     return render(request, "claims/claim_detail.html", {
         "organization_id": organization_id, "claim": claim, "revision": current,
         "lines": current.lines.order_by("ordinal"), "form": form,
         "actionability": actionability, "delivery_form": delivery_form,
-        "delivery": delivery,
+        "delivery": delivery, "case_delivery": case_delivery,
     })
 
 
@@ -276,29 +280,38 @@ def delivery_review(request, organization_id, intent_id):
             if action == "cancel":
                 active_form = cancel_form = DeliveryCancelForm(request.POST, prefix="cancel")
                 if cancel_form.is_valid():
-                    result = cancel_before_dispatch(
-                        actor=request.user, organization_id=organization_id,
-                        request_id=cancel_form.cleaned_data["request_uuid"],
-                        intent_id=cancel_form.cleaned_data["intent_id"],
-                    )
+                    if cancel_form.cleaned_data["intent_id"] != detail.intent.id:
+                        cancel_form.add_error("intent_id", "delivery_intent_not_for_page")
+                    else:
+                        result = cancel_before_dispatch(
+                            actor=request.user, organization_id=organization_id,
+                            request_id=cancel_form.cleaned_data["request_uuid"],
+                            intent_id=detail.intent.id,
+                        )
             elif action == "retry":
                 active_form = retry_form = DeliveryRetryForm(request.POST, prefix="retry")
                 if retry_form.is_valid():
-                    result = retry_idempotent_delivery(
-                        actor=request.user, organization_id=organization_id,
-                        request_id=retry_form.cleaned_data["request_uuid"],
-                        intent_id=retry_form.cleaned_data["intent_id"],
-                        expected_attempt_id=retry_form.cleaned_data["expected_attempt_id"],
-                    )
+                    if retry_form.cleaned_data["intent_id"] != detail.intent.id:
+                        retry_form.add_error("intent_id", "delivery_intent_not_for_page")
+                    else:
+                        result = retry_idempotent_delivery(
+                            actor=request.user, organization_id=organization_id,
+                            request_id=retry_form.cleaned_data["request_uuid"],
+                            intent_id=detail.intent.id,
+                            expected_attempt_id=retry_form.cleaned_data["expected_attempt_id"],
+                        )
             elif action == "reconcile":
                 active_form = reconcile_form = DeliveryReconcileForm(
                     request.POST, prefix="reconcile"
                 )
                 if reconcile_form.is_valid():
-                    result = reconcile_delivery(
-                        actor=request.user, organization_id=organization_id,
-                        intent_id=reconcile_form.cleaned_data["intent_id"],
-                    )
+                    if reconcile_form.cleaned_data["intent_id"] != detail.intent.id:
+                        reconcile_form.add_error("intent_id", "delivery_intent_not_for_page")
+                    else:
+                        result = reconcile_delivery(
+                            actor=request.user, organization_id=organization_id,
+                            intent_id=detail.intent.id,
+                        )
             else:
                 return HttpResponseNotAllowed(["GET", "POST"])
         except (CommandError, AuthorizationError) as exc:
