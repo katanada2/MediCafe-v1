@@ -63,15 +63,55 @@ def _intent_hash(payload):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _receipt_replay(*, organization_id, request_id, digest, command_kind):
+def _receipt_replay(*, organization_id, request_id, digest, command_kind, target_key):
     receipt = ClaimsCommandReceipt.objects.filter(
         organization_id=organization_id, request_uuid=request_id
     ).first()
     if not receipt:
         return None
-    if receipt.intent_digest != digest or receipt.command_kind != command_kind:
+    if (
+        receipt.intent_digest != digest or receipt.command_kind != command_kind
+        or receipt.target_key != str(target_key)
+    ):
         raise CommandError("request_input_conflict")
+    _validate_delivery_receipt(receipt)
     return receipt
+
+
+def _validate_delivery_receipt(receipt):
+    intent = receipt.result_delivery_intent
+    work = receipt.result_delivery_work
+    if intent is None or work is None or work.intent_id != intent.id:
+        raise CommandError("receipt_result_conflict")
+    if receipt.command_kind == "request_delivery":
+        valid = (
+            receipt.target_key == str(intent.claim_revision_id)
+            and receipt.result_claim_id == intent.claim_id
+            and receipt.result_revision_id == intent.claim_revision_id
+            and receipt.result_approval_id == intent.claim_approval_id
+            and receipt.result_code in {"delivery_requested", "delivery_coalesced"}
+        )
+    elif receipt.command_kind == "cancel_before_dispatch":
+        valid = (
+            receipt.target_key == str(intent.id)
+            and receipt.result_code in {"delivery_cancelled", "delivery_already_cancelled"}
+        )
+    elif receipt.command_kind == "retry_idempotent_delivery":
+        attempt = receipt.result_attempt
+        valid = (
+            receipt.target_key == str(intent.id)
+            and attempt is not None
+            and attempt.intent_id == intent.id
+            and attempt.work_id == work.id
+            and receipt.expected_predecessor_id == attempt.id
+            and receipt.result_code in {
+                "delivery_retry_scheduled", "delivery_retry_already_scheduled"
+            }
+        )
+    else:
+        valid = False
+    if not valid:
+        raise CommandError("receipt_result_conflict")
 
 
 def _result_from_receipt(receipt, *, replayed, actor):
@@ -145,7 +185,7 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
     digest = _intent_hash(payload)
     replay = _receipt_replay(
         organization_id=organization_id, request_id=request_uuid, digest=digest,
-        command_kind="request_delivery",
+        command_kind="request_delivery", target_key=revision_id,
     )
     if replay:
         return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -168,7 +208,7 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
         ).first()
         replay = _receipt_replay(
             organization_id=organization_id, request_id=request_uuid, digest=digest,
-            command_kind="request_delivery",
+            command_kind="request_delivery", target_key=revision_id,
         )
         if replay:
             return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -196,15 +236,18 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
         envelope = bytes(scoped.envelope_bytes)
         if hashlib.sha256(envelope).hexdigest() != envelope_digest:
             raise CommandError("envelope_unavailable")
-        approval = ClaimApproval.objects.get(
-            organization_id=organization_id, claim_revision=scoped,
-            envelope_digest=envelope_digest,
-        )
         actionability = claim_actionability(
             actor=actor, organization_id=organization_id, claim_revision_id=scoped.id
         )
         if actionability.blockers:
             raise CommandError(actionability.primary_reason)
+        try:
+            approval = ClaimApproval.objects.get(
+                organization_id=organization_id, claim_revision=scoped,
+                envelope_digest=envelope_digest,
+            )
+        except ClaimApproval.DoesNotExist as exc:
+            raise CommandError("claim_revision_not_approved") from exc
         if control and not _slot_releasable(control.current_intent):
             prior = delivery_effect_state(control.current_intent)
             raise CommandError(
@@ -256,7 +299,7 @@ def cancel_before_dispatch(*, actor, organization_id, request_id, intent_id):
     })
     replay = _receipt_replay(
         organization_id=organization_id, request_id=request_uuid, digest=digest,
-        command_kind="cancel_before_dispatch",
+        command_kind="cancel_before_dispatch", target_key=target_id,
     )
     if replay:
         return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -272,7 +315,7 @@ def cancel_before_dispatch(*, actor, organization_id, request_id, intent_id):
         )
         replay = _receipt_replay(
             organization_id=organization_id, request_id=request_uuid, digest=digest,
-            command_kind="cancel_before_dispatch",
+            command_kind="cancel_before_dispatch", target_key=target_id,
         )
         if replay:
             return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -310,7 +353,7 @@ def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
     })
     replay = _receipt_replay(
         organization_id=organization_id, request_id=request_uuid, digest=digest,
-        command_kind="retry_idempotent_delivery",
+        command_kind="retry_idempotent_delivery", target_key=target_id,
     )
     if replay:
         return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -328,7 +371,7 @@ def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
         )
         replay = _receipt_replay(
             organization_id=organization_id, request_id=request_uuid, digest=digest,
-            command_kind="retry_idempotent_delivery",
+            command_kind="retry_idempotent_delivery", target_key=target_id,
         )
         if replay:
             return _result_from_receipt(replay, replayed=True, actor=actor)
@@ -430,7 +473,10 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
     if existing and getattr(existing, "evidence_fingerprint", None) == fingerprint:
         return existing
     conflict = existing is not None or not binding_valid
-    observed_at = parse_datetime(evidence.observed_at)
+    try:
+        observed_at = parse_datetime(evidence.observed_at)
+    except (TypeError, ValueError, OverflowError):
+        observed_at = None
     if observed_at is None:
         observed_at = timezone.now()
         conflict = True

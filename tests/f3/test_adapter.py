@@ -7,6 +7,7 @@ import math
 import os
 import threading
 import unittest
+import uuid
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
@@ -124,11 +125,11 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
 
     def _frozen(self, version="v1", payload=b'{"synthetic":true}\n'):
         return FrozenDelivery(
-            organization_id="organization-1",
-            intent_id="intent-1",
-            claim_revision_id="revision-1",
-            delivery_key="delivery-key-1",
-            attempt_id="attempt-1",
+            organization_id="00000000-0000-0000-0000-000000000001",
+            intent_id="00000000-0000-0000-0000-000000000002",
+            claim_revision_id="00000000-0000-0000-0000-000000000003",
+            delivery_key="00000000-0000-0000-0000-000000000004",
+            attempt_id="00000000-0000-0000-0000-000000000005",
             receiver_id=RECEIVER_ID,
             receiver_version=version,
             envelope_digest=hashlib.sha256(payload).hexdigest(),
@@ -192,8 +193,8 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
             self.assertEqual(
                 [request["path"] for request in self.receiver.state.requests[1::2]],
                 [
-                    "/v1/receipts/organization-1/delivery-key-1?attempt_id=attempt-1",
-                    "/v2/receipts/organization-1/delivery-key-1?attempt_id=attempt-1",
+                    "/v1/receipts/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000004?attempt_id=00000000-0000-0000-0000-000000000005",
+                    "/v2/receipts/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000004?attempt_id=00000000-0000-0000-0000-000000000005",
                 ],
             )
 
@@ -245,7 +246,7 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
         self.assertEqual(raised.exception.reason_code, "receiver_readback_failed")
         self.assertEqual(
             [request["path"] for request in self.receiver.state.requests],
-            ["/v1/receipts/organization-1/delivery-key-1?attempt_id=attempt-1"],
+            ["/v1/receipts/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000004?attempt_id=00000000-0000-0000-0000-000000000005"],
         )
 
     def test_configuration_rejects_non_loopback_and_unsafe_urls(self):
@@ -329,6 +330,10 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
             self._evidence_body(frozen, received_bytes="%%%%"),
             self._evidence_body(frozen, state=True),
             self._evidence_body(frozen, observed_at=""),
+            self._evidence_body(frozen, observed_at="2026-99-99T00:00:00Z"),
+            self._evidence_body(frozen, organization_id="not-a-uuid"),
+            self._evidence_body(frozen, reported_attempt_id="bad"),
+            self._evidence_body(frozen, envelope_digest="z" * 64),
             self._evidence_body(
                 frozen, organization_id="x" * 129
             ),
@@ -361,7 +366,7 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
         frozen = self._frozen()
         body = self._evidence_body(
             frozen,
-            organization_id="wrong-organization",
+            organization_id=str(uuid.uuid4()),
             envelope_digest="f" * 64,
             byte_length=1,
             received_bytes=base64.b64encode(b"wrong-bytes").decode("ascii"),
@@ -371,7 +376,7 @@ class LoopbackReceiverAdapterTests(SimpleTestCase):
             self.receiver.state.queue(self._json_bytes(body))
             evidence = adapter.readback(frozen)
 
-        self.assertEqual(evidence.organization_id, "wrong-organization")
+        self.assertEqual(evidence.organization_id, body["organization_id"])
         self.assertEqual(evidence.envelope_digest, "f" * 64)
         self.assertEqual(evidence.byte_length, 1)
         self.assertEqual(evidence.received_bytes, b"wrong-bytes")

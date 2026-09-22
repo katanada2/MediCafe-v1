@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import time
 import uuid
-from datetime import timedelta
 
 from django.utils import timezone
 
@@ -119,14 +119,16 @@ class WorkerPreflightTests(F3TransactionTestCase):
         adapter = AcceptedAdapter()
         with self.assertRaises(CrashSignal):
             run_delivery_worker_once(
-                worker_id="crash-worker", lease_seconds=2, adapter=adapter,
+                worker_id="crash-worker", lease_seconds=1, adapter=adapter,
                 after_marker=lambda frozen: (_ for _ in ()).throw(CrashSignal()),
             )
         attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
         self.assertFalse(AttemptOutcome.objects.filter(attempt=attempt).exists())
-        DeliveryWork.objects.filter(id=requested.work_id).update(
-            lease_expires_at=timezone.now() - timedelta(seconds=1)
-        )
+        deadline = time.monotonic() + 2
+        while DeliveryWork.objects.get(id=requested.work_id).lease_expires_at > timezone.now():
+            if time.monotonic() >= deadline:
+                self.fail("delivery lease did not expire within bounded wait")
+            time.sleep(0.02)
 
         recovered_adapter = AcceptedAdapter()
         recovered = run_delivery_worker_once(

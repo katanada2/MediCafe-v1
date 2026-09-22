@@ -101,6 +101,44 @@ class DispatchFenceSQLTests(F3TransactionTestCase):
         self.work.refresh_from_db()
         self.assertNotEqual(self.work.scheduled_authorization_receipt_id, coalesced.id)
 
+    def test_direct_receipt_target_must_match_result_revision(self):
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            ClaimsCommandReceipt.objects.create(
+                organization=self.alpha, request_uuid=uuid.uuid4(),
+                command_kind="request_delivery", target_key=str(self.intent.id),
+                intent_digest="d" * 64, result_claim_id=self.revision.claim_id,
+                result_revision=self.revision,
+                result_approval=self.intent.claim_approval,
+                result_delivery_intent=self.intent, result_delivery_work=self.work,
+                result_code="delivery_coalesced", accepted_by=self.alpha_user,
+            )
+
+    def test_wrong_canonical_observation_route_cannot_bind(self):
+        attempt_id = uuid.uuid4()
+        self._insert_attempt(self._attempt_values(attempt_id=attempt_id))
+        observation = ReceiverObservation.objects.create(
+            organization=self.alpha, intent=self.intent, claim_revision=self.revision,
+            origin=ReceiverObservation.ORIGIN_RECONCILIATION,
+            receiver_id="synthetic-receiver", receiver_version=self.intent.receiver_version,
+            lookup_key=uuid.uuid4(), receipt_id="wrong-canonical-route",
+            reported_attempt_id=attempt_id, envelope_digest=self.intent.envelope_digest,
+            byte_length=self.intent.byte_length,
+            received_bytes=bytes(self.revision.envelope_bytes),
+            observed_state=ReceiverObservation.STATE_ACCEPTED,
+            no_acceptance_guaranteed=False, binding_valid=True, conflict_reason="",
+            evidence_fingerprint="e" * 64,
+            reported_organization_id=self.alpha.id, reported_intent_id=self.intent.id,
+            reported_claim_revision_id=self.revision.id,
+            reported_delivery_key=self.intent.delivery_key,
+            reported_receiver_id="synthetic-receiver",
+            reported_receiver_version=self.intent.receiver_version,
+            reported_envelope_digest=self.intent.envelope_digest,
+            reported_byte_length=self.intent.byte_length, observed_at=timezone.now(),
+        )
+        observation.refresh_from_db()
+        self.assertFalse(observation.binding_valid)
+        self.assertEqual(observation.observed_state, ReceiverObservation.STATE_CONFLICT)
+
     def test_direct_authorizer_substitution_fails_named_attempt_guard(self):
         with self.assertRaises(DatabaseError), transaction.atomic():
             values = list(self._attempt_values())

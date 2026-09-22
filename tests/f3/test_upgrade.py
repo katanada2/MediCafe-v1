@@ -36,7 +36,7 @@ class ClaimsUpgradeRegressionTests(TransactionTestCase):
     """Exercise the claims0003-to-current upgrade on PostgreSQL only."""
 
     migrate_from = ("claims", "0003_f2_claim_integrity")
-    migrate_to = ("claims", "0008_f3_work_transition_guards")
+    migrate_to = ("claims", "0009_f3_receipt_and_observation_targets")
 
     @classmethod
     def setUpClass(cls):

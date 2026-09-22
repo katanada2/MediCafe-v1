@@ -6,12 +6,15 @@ import base64
 import binascii
 import json
 import math
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from medicafe_v1.sources.domain import CommandError
 
@@ -301,6 +304,22 @@ class LoopbackReceiverAdapter:
             or (attempt_id is not None and not isinstance(attempt_id, str))
             or (isinstance(attempt_id, str) and len(attempt_id) > MAX_ATTEMPT_ID_LENGTH)
             or (received is not None and len(received) > MAX_ENVELOPE_BYTES)
+        ):
+            raise CommandError("receiver_readback_invalid")
+        try:
+            for name in (
+                "organization_id", "intent_id", "claim_revision_id", "delivery_key"
+            ):
+                uuid.UUID(body[name])
+            if attempt_id is not None:
+                uuid.UUID(attempt_id)
+            observed_at = parse_datetime(body["observed_at"])
+        except (TypeError, ValueError, OverflowError):
+            raise CommandError("receiver_readback_invalid") from None
+        if (
+            any(char not in "0123456789abcdef" for char in body["envelope_digest"])
+            or observed_at is None
+            or not timezone.is_aware(observed_at)
         ):
             raise CommandError("receiver_readback_invalid")
         return ReceiverEvidence(
