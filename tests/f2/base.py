@@ -43,7 +43,7 @@ class F2TestCase(F1TestCase):
             ),
             artifact_store=self.store,
         )
-        return admitted, observation, resolved
+        return self.delivery(admitted.delivery_id), observation, resolved
 
     def accepted_service(self, resolved, observation, *, actor=None, organization=None,
                          request_id=None, code="SYN-A", units=1,
@@ -64,4 +64,3 @@ class F2TestCase(F1TestCase):
             reason=reason,
             artifact_store=self.store,
         )
-

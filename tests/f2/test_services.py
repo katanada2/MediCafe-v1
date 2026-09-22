@@ -3,8 +3,6 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from django.db.models import Count
-
 from medicafe_v1.access.models import Membership
 from medicafe_v1.access.services import AuthorizationError
 from medicafe_v1.records.commands import revise_service
@@ -186,10 +184,8 @@ class ServiceCommandTests(F2TestCase):
         self.assertEqual(zero_revision.units, 100)
         self.assertEqual(maximum_revision.unit_amount, Decimal("9999.99"))
         self.assertEqual(maximum_revision.units, 100)
-        self.assertEqual(
-            Service.objects.filter(organization=self.alpha).annotate(revisions=Count("revisions")).count(),
-            2,
-        )
+        self.assertEqual(Service.objects.filter(organization=self.alpha).count(), 2)
+        self.assertEqual(ServiceRevision.objects.filter(organization=self.alpha).count(), 2)
 
     def test_cross_organization_and_inactive_membership_fail_closed(self):
         _alpha_delivery, alpha_observation, alpha_resolved = self.resolved_observation(
@@ -270,4 +266,3 @@ class ServiceCommandTests(F2TestCase):
                 organization_id=self.alpha.id,
                 encounter_id=alpha_resolved.encounter_id,
             ))
-
