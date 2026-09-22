@@ -70,11 +70,35 @@ class OutcomeArchiveEntry:
 
 
 @dataclass(frozen=True)
+class OutcomeArchiveBasis:
+    basis_id: object
+    claim_line_id: object
+    line_ordinal: int
+    original_charge: Decimal
+    payer_reported_credits: Decimal
+    contractual_adjustments: Decimal
+    residual: Decimal
+
+
+@dataclass(frozen=True)
+class OutcomeArchiveAccount:
+    account_id: object
+    claim_revision_id: object
+    currency: str
+    original_charge: Decimal
+    payer_reported_credits: Decimal
+    contractual_adjustments: Decimal
+    residual: Decimal
+    bases: tuple[OutcomeArchiveBasis, ...]
+
+
+@dataclass(frozen=True)
 class OutcomeArchiveSnapshot:
     organization_id: object
     encounter_id: object
     events: tuple[OutcomeArchiveEvent, ...]
     entries: tuple[OutcomeArchiveEntry, ...]
+    accounts: tuple[OutcomeArchiveAccount, ...]
     conflict_ids: tuple[object, ...]
 
 
@@ -164,6 +188,37 @@ def archive_outcome_snapshot(*, actor, organization_id, encounter_id):
         item.id, item.event_id, item.account.claim_revision_id,
         item.claim_line_id, item.kind, item.amount, item.currency,
     ) for item in entries)
+    account_values = []
+    accounts = FinancialAccount.objects.filter(
+        organization_id=organization_id,
+        claim_revision_id__in={item.claim_revision_id for item in event_values},
+    ).prefetch_related("charge_lines").order_by("created_at", "id")
+    for account in accounts:
+        basis_values = []
+        payment_total = Decimal("0.00")
+        adjustment_total = Decimal("0.00")
+        for basis in account.charge_lines.order_by("line_ordinal", "id"):
+            payments = PostingEntry.objects.filter(
+                organization_id=organization_id, charge_basis=basis,
+                kind=PostingEntry.KIND_PAYMENT,
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+            adjustments = PostingEntry.objects.filter(
+                organization_id=organization_id, charge_basis=basis,
+                kind=PostingEntry.KIND_ADJUSTMENT,
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+            payment_total += payments
+            adjustment_total += adjustments
+            basis_values.append(OutcomeArchiveBasis(
+                basis.id, basis.claim_line_id, basis.line_ordinal,
+                basis.original_charge, payments, adjustments,
+                basis.original_charge - payments - adjustments,
+            ))
+        account_values.append(OutcomeArchiveAccount(
+            account.id, account.claim_revision_id, account.currency,
+            account.original_charge, payment_total, adjustment_total,
+            account.original_charge - payment_total - adjustment_total,
+            tuple(basis_values),
+        ))
     candidates = InboundCandidate.objects.filter(
         organization_id=organization_id,
         claim_revision_id__in={item.claim_revision_id for item in event_values},
@@ -172,5 +227,6 @@ def archive_outcome_snapshot(*, actor, organization_id, encounter_id):
         Q(existing_candidate__in=candidates) | Q(conflicting_candidate__in=candidates)
     ).order_by("recorded_at", "id").values_list("id", flat=True)
     return OutcomeArchiveSnapshot(
-        organization_id, encounter_id, event_values, entry_values, tuple(conflicts)
+        organization_id, encounter_id, event_values, entry_values,
+        tuple(account_values), tuple(conflicts)
     )

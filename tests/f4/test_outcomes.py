@@ -278,6 +278,31 @@ class OutcomesAcceptanceTests(F4TestCase):
 
 
 class OutcomesSqlRelationshipTests(F4TransactionTestCase):
+    def test_direct_lifecycle_sequence_zero_is_rejected(self):
+        _revision, intent, observation, _result = self.delivered_claim()
+        _admitted, interpreted = self.admit_inbound(
+            kind="lifecycle", intent=intent, observation=observation,
+        )
+        candidate = InboundCandidate.objects.get(id=interpreted.candidate_id)
+        normalized = dict(candidate.normalized_content)
+        normalized["lifecycle_sequence"] = 0
+
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            InboundCandidate.objects.create(
+                organization=self.alpha, delivery=candidate.delivery,
+                interpreter_version="direct-sequence-zero",
+                schema_version=candidate.schema_version, kind=candidate.kind,
+                sender_id=candidate.sender_id, event_id=uuid.uuid4(),
+                delivery_key=candidate.delivery_key, intent_id=candidate.intent_id,
+                claim_revision_id=candidate.claim_revision_id,
+                receiver_receipt_id=candidate.receiver_receipt_id, currency="",
+                lifecycle_sequence=0, predecessor_event_id=None,
+                lifecycle_status=candidate.lifecycle_status,
+                normalized_content=normalized,
+                semantic_bytes=candidate.semantic_bytes,
+                semantic_digest=candidate.semantic_digest,
+            )
+
     def test_candidate_lines_are_sealed_after_interpretation(self):
         _revision, intent, observation, _result = self.delivered_claim()
         _admitted, interpreted = self.admit_inbound(

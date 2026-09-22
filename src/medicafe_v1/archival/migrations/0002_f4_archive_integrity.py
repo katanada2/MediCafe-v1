@@ -199,6 +199,7 @@ CREATE CONSTRAINT TRIGGER archival_authorization_admission
 CREATE FUNCTION archival_f4_work_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE projection_row archival_archiveprojection%ROWTYPE;
         auth_row archival_archiveauthorization%ROWTYPE;
+        latest_attempt archival_archiveattempt%ROWTYPE;
 BEGIN
   IF TG_OP='DELETE' THEN
     RAISE EXCEPTION 'archive work cannot be deleted' USING ERRCODE='55000';
@@ -211,17 +212,54 @@ BEGIN
      OR auth_row.projection_id IS DISTINCT FROM NEW.projection_id THEN
     RAISE EXCEPTION 'archive work projection or authorization mismatch' USING ERRCODE='23514';
   END IF;
+  IF (NEW.state='leased' AND (
+        NEW.lease_owner='' OR NEW.lease_expires_at IS NULL
+        OR NEW.lease_expires_at <= statement_timestamp()
+      )) OR (NEW.state<>'leased' AND (
+        NEW.lease_owner<>'' OR NEW.lease_expires_at IS NOT NULL
+      )) THEN
+    RAISE EXCEPTION 'archive work lease shape invalid' USING ERRCODE='23514';
+  END IF;
   IF TG_OP='UPDATE' THEN
     IF ROW(NEW.id,NEW.organization_id,NEW.projection_id)
        IS DISTINCT FROM ROW(OLD.id,OLD.organization_id,OLD.projection_id)
        OR NEW.fencing_generation < OLD.fencing_generation THEN
       RAISE EXCEPTION 'archive work identity or fence cannot rewind' USING ERRCODE='55000';
     END IF;
+    IF OLD.state='pending' AND NEW.state='leased' THEN
+      IF NEW.fencing_generation <> OLD.fencing_generation+1 THEN
+        RAISE EXCEPTION 'archive lease requires a fresh fence' USING ERRCODE='23514';
+      END IF;
+    ELSIF OLD.state='leased' AND NEW.state='leased' THEN
+      RAISE EXCEPTION 'archive lease owner or expiry cannot be replaced or extended'
+        USING ERRCODE='55000';
+    ELSIF NEW.fencing_generation <> OLD.fencing_generation THEN
+      RAISE EXCEPTION 'archive fence changes only on pending to leased transition'
+        USING ERRCODE='23514';
+    END IF;
+    IF OLD.state='leased' AND OLD.lease_expires_at <= statement_timestamp()
+       AND NEW.state='pending' THEN
+      SELECT * INTO latest_attempt FROM archival_archiveattempt
+       WHERE work_id=OLD.id AND fencing_generation=OLD.fencing_generation
+       ORDER BY started_at DESC,id DESC LIMIT 1;
+      IF latest_attempt.id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM archival_archiveattemptoutcome outcome
+         WHERE outcome.attempt_id=latest_attempt.id
+      ) THEN
+        RAISE EXCEPTION 'expired possible write requires a terminal outcome before recovery'
+          USING ERRCODE='23514';
+      END IF;
+    END IF;
     IF NEW.scheduled_authorization_id IS DISTINCT FROM OLD.scheduled_authorization_id
-       AND auth_row.kind <> 'manual_retry' THEN
+       AND (auth_row.kind <> 'manual_retry'
+            OR OLD.state NOT IN ('finished','blocked')
+            OR NEW.state <> 'pending'
+            OR NEW.fencing_generation <> OLD.fencing_generation) THEN
       RAISE EXCEPTION 'archive work authorization replacement requires manual retry'
         USING ERRCODE='23514';
     END IF;
+  ELSIF NEW.state <> 'pending' OR NEW.fencing_generation <> 0 THEN
+    RAISE EXCEPTION 'new archive work must start pending at fence zero' USING ERRCODE='23514';
   END IF;
   RETURN NEW;
 END;
@@ -273,6 +311,7 @@ BEGIN
      OR auth_row.projection_id IS DISTINCT FROM NEW.projection_id
      OR work_row.state <> 'leased' OR work_row.lease_owner IS DISTINCT FROM NEW.lease_owner
      OR work_row.fencing_generation IS DISTINCT FROM NEW.fencing_generation
+     OR work_row.lease_expires_at IS NULL
      OR work_row.lease_expires_at <= statement_timestamp()
      OR NEW.receiver_id IS DISTINCT FROM auth_row.receiver_id
      OR NEW.receiver_version IS DISTINCT FROM auth_row.receiver_version
@@ -291,10 +330,14 @@ CREATE TRIGGER archival_attempt_admission
 
 CREATE FUNCTION archival_f4_observation_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE projection_row archival_archiveprojection%ROWTYPE;
-        attempt_row archival_archiveattempt%ROWTYPE; receipt_conflict boolean;
+        attempt_row archival_archiveattempt%ROWTYPE;
+        reported_attempt_row archival_archiveattempt%ROWTYPE;
+        receipt_conflict boolean;
 BEGIN
   SELECT * INTO projection_row FROM archival_archiveprojection WHERE id=NEW.lookup_projection_id;
   SELECT * INTO attempt_row FROM archival_archiveattempt WHERE id=NEW.source_attempt_id;
+  SELECT * INTO reported_attempt_row FROM archival_archiveattempt
+   WHERE id=NEW.reported_attempt_id;
   INSERT INTO archival_archivereceiptidentity
     (receiver_id,receiver_version,target_receipt_id,evidence_fingerprint)
     VALUES (NEW.receiver_id,NEW.receiver_version,NEW.target_receipt_id,NEW.evidence_fingerprint)
@@ -318,7 +361,14 @@ BEGIN
      OR receipt_conflict
      OR (attempt_row.id IS NOT NULL AND (
        attempt_row.organization_id IS DISTINCT FROM NEW.organization_id
-       OR attempt_row.projection_id IS DISTINCT FROM projection_row.id)) THEN
+       OR attempt_row.projection_id IS DISTINCT FROM projection_row.id))
+     OR (NEW.reported_attempt_id IS NOT NULL AND (
+       reported_attempt_row.id IS NULL
+       OR reported_attempt_row.organization_id IS DISTINCT FROM NEW.organization_id
+       OR reported_attempt_row.projection_id IS DISTINCT FROM projection_row.id
+       OR reported_attempt_row.receiver_id IS DISTINCT FROM NEW.receiver_id
+       OR reported_attempt_row.receiver_version IS DISTINCT FROM NEW.receiver_version
+     )) THEN
     NEW.observed_state := 'conflict';
     NEW.conflict_reason := CASE WHEN receipt_conflict
       THEN 'archive_receipt_identity_conflict' ELSE 'archive_binding_mismatch' END;
@@ -347,20 +397,31 @@ BEGIN
         AND NOT attempt_row.possible_write THEN
     RAISE EXCEPTION 'archive write outcome requires possible-write marker' USING ERRCODE='23514';
   END IF;
-  IF NEW.kind='target_confirmed' THEN
+  IF NEW.readback_observation_id IS NOT NULL THEN
     SELECT * INTO observation_row FROM archival_archivereadbackobservation
      WHERE id=NEW.readback_observation_id;
-    IF observation_row.id IS NULL OR observation_row.observed_state <> 'verified'
+    IF observation_row.id IS NULL
        OR observation_row.organization_id IS DISTINCT FROM NEW.organization_id
        OR observation_row.lookup_projection_id IS DISTINCT FROM attempt_row.projection_id
        OR observation_row.receiver_id IS DISTINCT FROM attempt_row.receiver_id
        OR observation_row.receiver_version IS DISTINCT FROM attempt_row.receiver_version
+       OR observation_row.reported_projection_id IS DISTINCT FROM attempt_row.projection_id
+       OR observation_row.reported_projection_version IS DISTINCT FROM (
+         SELECT version FROM archival_archiveprojection WHERE id=attempt_row.projection_id
+       )
        OR observation_row.reported_digest IS DISTINCT FROM attempt_row.projection_digest
        OR observation_row.reported_byte_length IS DISTINCT FROM attempt_row.byte_length THEN
-      RAISE EXCEPTION 'archive confirmation requires exact verified readback'
+      RAISE EXCEPTION 'archive outcome readback does not match attempt projection'
         USING ERRCODE='23514';
     END IF;
-  ELSIF NEW.readback_observation_id IS NOT NULL AND NEW.kind <> 'unknown' THEN
+  END IF;
+  IF NEW.kind='target_confirmed' AND (
+      NEW.readback_observation_id IS NULL
+      OR observation_row.observed_state <> 'verified') THEN
+    RAISE EXCEPTION 'archive confirmation requires exact verified readback'
+      USING ERRCODE='23514';
+  ELSIF NEW.readback_observation_id IS NOT NULL
+        AND NEW.kind NOT IN ('target_confirmed','unknown') THEN
     RAISE EXCEPTION 'archive outcome readback shape invalid' USING ERRCODE='23514';
   END IF;
   RETURN NEW;

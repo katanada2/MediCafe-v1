@@ -169,6 +169,9 @@ def handler_for(ledger):
 
         def do_GET(self):
             parsed = urlparse(self.path)
+            if parsed.path == "/health" and not parsed.query:
+                self._json(200, {"status": "ok"})
+                return
             if parsed.path != "/v1/read":
                 self._json(404, {"status": "not_found"})
                 return

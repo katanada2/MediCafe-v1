@@ -1,9 +1,10 @@
 # F4 implementation and acceptance matrix
 
-Status: implementation design checkpoint on `codex/f4-outcomes-archive`, based
+Status: implementation and evidence packet on `codex/f4-outcomes-archive`, based
 on merged F4 admission `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`.
-This record fixes implementation seams and executable coverage before runtime
-work begins. It is not completion evidence.
+This record fixes implementation seams and maps executable coverage. Executed
+exact-head PostgreSQL evidence must still be recorded in the delivery handoff;
+source presence or a partial/local check is not completion evidence.
 
 ## Ownership and public boundary
 
@@ -161,3 +162,17 @@ database is unavailable.
 
 Stop for an authority/interface contradiction, two failures of one approach,
 or the completed draft PR/evidence packet. Sol does not merge.
+
+## Acceptance group implementation map
+
+| Group | Primary executable evidence |
+|---|---|
+| 1–2 | `tests/f4/test_outcomes.py`: strict interpretation, duplicate keys, replay, canonical money spellings and no double posting |
+| 3–4 | `tests/f4/test_outcomes.py`: complete historical conflict scan, retained accepted fact, ordered reevaluation, lifecycle gap and direct sequence-zero denial |
+| 5–6 | `tests/f4/test_outcomes.py`: conserved entries, atomic overallocation denial, precision normalization and typed components |
+| 7 | `tests/f4/test_outcomes.py` and `tests/f4/test_web.py`: relationship-class SQL guards, page-target retention, tenant authorization inherited from owner queries and CSRF denial |
+| 8 | `tests/f4/test_process_archive.py` plus F1–F3 regressions: fresh process persistence/restart and bounded non-payload command output |
+| 9 | `tests/f4/test_archive.py`: coherent capture/replay, nested-transaction denial and current fingerprint lag |
+| 10 | `tests/f4/test_archive.py` and `tests/f4/test_process_archive.py`: exact independent readback, send-success denial, wrong-item conflict and separate target restart |
+| 11 | `tests/f4/test_archive.py`: bounded automatic retry, pending-grant coalescing, reported-attempt preservation, immutable-unknown late confirmation and fence guard |
+| 12 | `tests/f4/test_process_archive.py`: unavailable archive leaves canonical remittance available, followed by exact recovery |

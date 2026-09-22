@@ -4,10 +4,13 @@ import base64
 import hashlib
 import json
 import math
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
+import uuid
 
 from django.conf import settings
 
@@ -15,6 +18,7 @@ from medicafe_v1.sources.domain import CommandError
 
 
 MAX_PROJECTION_BYTES = 2 * 1024 * 1024
+HEX_64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):
@@ -122,6 +126,8 @@ class LoopbackArchiveAdapter:
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
                 result = self._decode(response, "archive_response_invalid")
+        except CommandError as exc:
+            return ArchiveTransportResult("unknown", exc.reason_code)
         except urllib.error.HTTPError as exc:
             if exc.code == 409:
                 return ArchiveTransportResult("rejected", "archive_target_conflict")
@@ -160,8 +166,33 @@ class LoopbackArchiveAdapter:
         if set(body) != expected:
             raise CommandError("archive_readback_invalid")
         try:
+            for key in (
+                "organization_id", "encounter_id", "projection_id",
+                "reported_attempt_id",
+            ):
+                if not isinstance(body[key], str) or str(uuid.UUID(body[key])) != body[key]:
+                    raise ValueError
+            if (
+                not isinstance(body["receiver_id"], str)
+                or not isinstance(body["receiver_version"], str)
+                or not isinstance(body["target_receipt_id"], str)
+                or not 1 <= len(body["target_receipt_id"]) <= 100
+                or not isinstance(body["projection_version"], int)
+                or isinstance(body["projection_version"], bool)
+                or body["projection_version"] < 1
+                or not isinstance(body["projection_digest"], str)
+                or not HEX_64_RE.fullmatch(body["projection_digest"])
+                or not isinstance(body["byte_length"], int)
+                or isinstance(body["byte_length"], bool)
+                or body["byte_length"] < 1
+                or not isinstance(body["observed_at"], str)
+            ):
+                raise ValueError
+            observed_at = datetime.fromisoformat(body["observed_at"].replace("Z", "+00:00"))
+            if observed_at.utcoffset() is None:
+                raise ValueError
             received = base64.b64decode(body["received_bytes_b64"], validate=True)
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, AttributeError) as exc:
             raise CommandError("archive_readback_invalid") from exc
         if len(received) > MAX_PROJECTION_BYTES:
             raise CommandError("archive_readback_invalid")

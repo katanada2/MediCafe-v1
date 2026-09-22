@@ -100,6 +100,16 @@ class ArchiveDeliverySnapshot:
 
 
 @dataclass(frozen=True)
+class ArchiveClaimRevisionSnapshot:
+    revision_id: object
+    revision_number: int
+    envelope_digest: str
+    currency: str
+    total_amount: object
+    lines: tuple[ArchiveClaimLineSnapshot, ...]
+
+
+@dataclass(frozen=True)
 class ClaimArchiveSnapshot:
     organization_id: object
     encounter_id: object
@@ -110,6 +120,7 @@ class ClaimArchiveSnapshot:
     total_amount: object | None
     lines: tuple[ArchiveClaimLineSnapshot, ...]
     deliveries: tuple[ArchiveDeliverySnapshot, ...]
+    revisions: tuple[ArchiveClaimRevisionSnapshot, ...]
 
 
 def _require_read_committed_atomic():
@@ -510,7 +521,7 @@ def archive_claim_snapshot(*, actor, organization_id, encounter_id):
     if claim is None or claim.current_revision_id is None:
         return ClaimArchiveSnapshot(
             organization_id, encounter_id, claim.id if claim else None,
-            None, "", "", None, (), (),
+            None, "", "", None, (), (), (),
         )
     revision = ClaimRevision.objects.get(
         organization_id=organization_id, id=claim.current_revision_id, claim=claim
@@ -527,8 +538,21 @@ def archive_claim_snapshot(*, actor, organization_id, encounter_id):
         item.intent_id, item.intent.claim_revision_id, item.intent.delivery_key,
         item.receiver_version, item.id, item.receipt_id, item.evidence_fingerprint,
     ) for item in observations)
+    revision_ids = {revision.id, *(item.intent.claim_revision_id for item in observations)}
+    revisions = []
+    for historical in ClaimRevision.objects.filter(
+        organization_id=organization_id, claim=claim, id__in=revision_ids,
+    ).order_by("revision_number", "id"):
+        historical_lines = tuple(ArchiveClaimLineSnapshot(
+            line.id, line.ordinal, line.service_id, line.service_revision_id,
+            line.code, line.units, line.unit_amount, line.line_amount, line.currency,
+        ) for line in historical.lines.order_by("ordinal", "id"))
+        revisions.append(ArchiveClaimRevisionSnapshot(
+            historical.id, historical.revision_number, historical.envelope_digest,
+            historical.currency, historical.total_amount, historical_lines,
+        ))
     return ClaimArchiveSnapshot(
         organization_id, encounter_id, claim.id, revision.id,
         revision.envelope_digest, revision.currency, revision.total_amount,
-        lines, deliveries,
+        lines, deliveries, tuple(revisions),
     )

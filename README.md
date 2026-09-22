@@ -1,12 +1,12 @@
 # MediCafe V1
 
-The accepted F1, F2 and F3 runtime foundations cover synthetic intake, identity review, explicit accepted services, immutable approved claim revisions, and durable synthetic delivery with explicit uncertainty. See the [delivery handoff](docs/roadmap/DELIVERY_HANDOFF.md) for exact evidence and PR provenance, and the [F1 setup](docs/roadmap/F1_SETUP.md), [F2 walkthrough](docs/roadmap/F2_SETUP.md), and [F3 receiver/worker walkthrough](docs/roadmap/F3_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
+The accepted F1, F2 and F3 runtime foundations cover synthetic intake, identity review, explicit accepted services, immutable approved claim revisions, and durable synthetic delivery with explicit uncertainty. F4 implementation adds admitted public-synthetic lifecycle/remittance and delayed-archive workflows for review. See the [delivery handoff](docs/roadmap/DELIVERY_HANDOFF.md) for exact evidence and PR provenance, and the [F1 setup](docs/roadmap/F1_SETUP.md), [F2 walkthrough](docs/roadmap/F2_SETUP.md), [F3 receiver/worker walkthrough](docs/roadmap/F3_SETUP.md), and [F4 outcomes/archive walkthrough](docs/roadmap/F4_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
 
 MediCafe V1 is the public planning home for a cloud-authoritative medical billing application. It is intended to become a clean, open-source application core under the `katanada2` owner while the private MediCafe repository remains the historical proving ground for workflows and operational evidence.
 
 ## Current status
 
-This repository contains the accepted architecture and public-synthetic F1, F2 and F3 runtime implementations. F4 runtime is admitted only from main containing the merged [F4 implementation admission](docs/roadmap/F4_IMPLEMENTATION_ADMISSION.md). The repository contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
+This repository contains the accepted architecture and public-synthetic F1, F2 and F3 runtime implementations. F4 implementation is admitted from main containing the merged [F4 implementation admission](docs/roadmap/F4_IMPLEMENTATION_ADMISSION.md); completion still requires reviewed exact-head PostgreSQL evidence and merge. The repository contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
 
 The V1 plan is the source for the proposed product shape, authority model, repository boundary, roadmap, and multi-agent working model:
 

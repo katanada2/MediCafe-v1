@@ -21,6 +21,15 @@ class VerifiedDeliveryBytes:
     byte_length: int
 
 
+@dataclass(frozen=True)
+class OutcomeDeliverySummary:
+    delivery_id: object
+    source_namespace: str
+    source_key: str
+    media_type: str
+    admitted_at: object
+
+
 def verified_delivery_bytes(*, actor, organization_id, delivery_id, artifact_store=None):
     """Return exact retained bytes through the sources-owned verification seam."""
     require_active_membership(actor=actor, organization_id=organization_id)
@@ -45,6 +54,20 @@ def verified_delivery_bytes(*, actor, organization_id, delivery_id, artifact_sto
 def scoped_deliveries(*, actor, organization_id):
     require_active_membership(actor=actor, organization_id=organization_id)
     return Delivery.objects.filter(organization_id=organization_id).select_related("artifact").order_by("-admitted_at")
+
+
+def outcome_deliveries(*, actor, organization_id):
+    """Return immutable summaries for the outcomes-owned operator inbox."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    rows = Delivery.objects.filter(
+        organization_id=organization_id,
+        source_namespace__in=("synthetic-lifecycle", "synthetic-remittance"),
+        artifact__media_type="application/json",
+    ).select_related("artifact").order_by("-admitted_at", "id")
+    return tuple(OutcomeDeliverySummary(
+        item.id, item.source_namespace, item.source_key,
+        item.artifact.media_type, item.admitted_at,
+    ) for item in rows)
 
 
 def scoped_observations(*, actor, organization_id, delivery_id=None, unresolved_only=False):

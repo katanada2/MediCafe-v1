@@ -2,7 +2,7 @@
 
 MediCafe V1 has accepted synthetic intake/identity (F1), service/claim approval (F2), and durable synthetic delivery with explicit uncertainty (F3). Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 runtime remains gated on a separate explicit reviewed admission record.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 implementation is admitted; acceptance remains gated on reviewed exact-head evidence and merge.
 
 ## Milestones
 

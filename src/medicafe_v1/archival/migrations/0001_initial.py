@@ -142,6 +142,7 @@ class Migration(migrations.Migration):
                 ('conflict_reason', models.CharField(blank=True, max_length=100)),
                 ('observed_at', models.DateTimeField()),
                 ('recorded_at', models.DateTimeField(auto_now_add=True)),
+                ('reported_attempt_id', models.UUIDField(blank=True, null=True)),
                 ('lookup_projection', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='readback_observations', to='archival.archiveprojection')),
                 ('organization', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='access.organization')),
                 ('source_attempt', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='readback_observations', to='archival.archiveattempt')),
@@ -230,7 +231,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='archivereadbackobservation',
-            constraint=models.UniqueConstraint(fields=('receiver_id', 'receiver_version', 'target_receipt_id', 'evidence_fingerprint'), name='arc_observation_receipt_fp_uniq'),
+            constraint=models.UniqueConstraint(fields=('lookup_projection', 'receiver_id', 'receiver_version', 'target_receipt_id', 'evidence_fingerprint'), name='arc_observation_receipt_fp_uniq'),
         ),
         migrations.AddConstraint(
             model_name='archivereadbackobservation',

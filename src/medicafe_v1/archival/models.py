@@ -214,6 +214,7 @@ class ArchiveReadbackObservation(TenantModel):
         ArchiveAttempt, null=True, blank=True, on_delete=models.PROTECT,
         related_name="readback_observations",
     )
+    reported_attempt_id = models.UUIDField(null=True, blank=True)
     lookup_projection = models.ForeignKey(
         ArchiveProjection, on_delete=models.PROTECT, related_name="readback_observations"
     )
@@ -236,7 +237,10 @@ class ArchiveReadbackObservation(TenantModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["receiver_id", "receiver_version", "target_receipt_id", "evidence_fingerprint"],
+                fields=[
+                    "lookup_projection", "receiver_id", "receiver_version",
+                    "target_receipt_id", "evidence_fingerprint",
+                ],
                 name="arc_observation_receipt_fp_uniq",
             ),
             models.UniqueConstraint(fields=["organization", "id"], name="arc_observation_org_id_uniq"),

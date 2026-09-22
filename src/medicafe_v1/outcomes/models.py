@@ -75,6 +75,13 @@ class InboundCandidate(TenantModel):
                 ),
                 name="out_candidate_kind_shape_ck",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(kind="remittance")
+                    | models.Q(kind="lifecycle", lifecycle_sequence__gte=1)
+                ),
+                name="out_candidate_lifecycle_sequence_ck",
+            ),
         ]
 
 

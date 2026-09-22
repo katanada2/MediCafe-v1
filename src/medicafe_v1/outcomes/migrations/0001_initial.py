@@ -217,6 +217,10 @@ class Migration(migrations.Migration):
             constraint=models.CheckConstraint(condition=models.Q(models.Q(('currency', ''), ('kind', 'lifecycle'), ('lifecycle_sequence__isnull', False), ('lifecycle_status__in', ('ACK_ACCEPTED', 'ACK_REJECTED'))), models.Q(('currency', 'USD'), ('kind', 'remittance'), ('lifecycle_sequence__isnull', True), ('lifecycle_status', ''), ('predecessor_event_id__isnull', True)), _connector='OR'), name='out_candidate_kind_shape_ck'),
         ),
         migrations.AddConstraint(
+            model_name='inboundcandidate',
+            constraint=models.CheckConstraint(condition=models.Q(('kind', 'remittance'), models.Q(('kind', 'lifecycle'), ('lifecycle_sequence__gte', 1)), _connector='OR'), name='out_candidate_lifecycle_sequence_ck'),
+        ),
+        migrations.AddConstraint(
             model_name='acceptedeventevidence',
             constraint=models.UniqueConstraint(fields=('organization', 'id'), name='out_evlink_org_id_uniq'),
         ),

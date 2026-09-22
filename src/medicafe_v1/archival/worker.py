@@ -174,15 +174,73 @@ def _fingerprint(evidence):
     ).encode("utf-8")).hexdigest()
 
 
+def _evidence_well_formed(evidence):
+    try:
+        identifiers = (
+            evidence.organization_id, evidence.encounter_id,
+            evidence.projection_id,
+        )
+        if any(str(uuid.UUID(value)) != value for value in identifiers):
+            return False
+        if evidence.reported_attempt_id is not None and (
+            str(uuid.UUID(evidence.reported_attempt_id)) != evidence.reported_attempt_id
+        ):
+            return False
+    except (ValueError, TypeError, AttributeError):
+        return False
+    observed_at = parse_datetime(evidence.observed_at) if isinstance(
+        evidence.observed_at, str
+    ) else None
+    return (
+        isinstance(evidence.receiver_id, str)
+        and isinstance(evidence.receiver_version, str)
+        and isinstance(evidence.target_receipt_id, str)
+        and 1 <= len(evidence.target_receipt_id) <= 100
+        and isinstance(evidence.projection_version, int)
+        and not isinstance(evidence.projection_version, bool)
+        and evidence.projection_version >= 1
+        and isinstance(evidence.projection_digest, str)
+        and len(evidence.projection_digest) == 64
+        and all(character in "0123456789abcdef" for character in evidence.projection_digest)
+        and isinstance(evidence.byte_length, int)
+        and not isinstance(evidence.byte_length, bool)
+        and evidence.byte_length >= 1
+        and isinstance(evidence.received_bytes, bytes)
+        and observed_at is not None and observed_at.utcoffset() is not None
+    )
+
+
+def _observation_matches_projection(observation, projection):
+    return (
+        observation.observed_state == ArchiveReadbackObservation.STATE_VERIFIED
+        and observation.organization_id == projection.organization_id
+        and observation.lookup_projection_id == projection.id
+        and observation.receiver_id == ARCHIVE_RECEIVER_ID
+        and observation.receiver_version == ARCHIVE_RECEIVER_VERSION
+        and observation.reported_organization_id == projection.organization_id
+        and observation.reported_encounter_id == projection.encounter_id
+        and observation.reported_projection_id == projection.id
+        and observation.reported_projection_version == projection.version
+        and observation.reported_digest == projection.projection_digest
+        and observation.reported_byte_length == projection.byte_length
+        and bytes(observation.received_bytes) == bytes(projection.projection_bytes)
+        and hashlib.sha256(bytes(observation.received_bytes)).hexdigest()
+        == projection.projection_digest
+    )
+
+
 def _record_observation(*, projection, attempt, evidence):
     fingerprint = _fingerprint(evidence)
     existing = ArchiveReadbackObservation.objects.filter(
+        organization_id=projection.organization_id,
+        lookup_projection=projection,
         receiver_id=ARCHIVE_RECEIVER_ID,
         receiver_version=ARCHIVE_RECEIVER_VERSION,
         target_receipt_id=evidence.target_receipt_id,
         evidence_fingerprint=fingerprint,
     ).first()
     if existing:
+        existing.refresh_from_db()
         return existing
     observed_at = parse_datetime(evidence.observed_at)
     valid = (
@@ -205,9 +263,10 @@ def _record_observation(*, projection, attempt, evidence):
     ).exclude(evidence_fingerprint=fingerprint).exists()
     try:
         with transaction.atomic():
-            return ArchiveReadbackObservation.objects.create(
+            observation = ArchiveReadbackObservation.objects.create(
                 organization_id=projection.organization_id,
                 source_attempt=attempt, lookup_projection=projection,
+                reported_attempt_id=evidence.reported_attempt_id,
                 receiver_id=ARCHIVE_RECEIVER_ID,
                 receiver_version=ARCHIVE_RECEIVER_VERSION,
                 target_receipt_id=evidence.target_receipt_id,
@@ -233,6 +292,8 @@ def _record_observation(*, projection, attempt, evidence):
             )
     except IntegrityError:
         observation = ArchiveReadbackObservation.objects.filter(
+            organization_id=projection.organization_id,
+            lookup_projection=projection,
             receiver_id=ARCHIVE_RECEIVER_ID,
             receiver_version=ARCHIVE_RECEIVER_VERSION,
             target_receipt_id=evidence.target_receipt_id,
@@ -240,11 +301,15 @@ def _record_observation(*, projection, attempt, evidence):
         ).first()
         if observation is None:
             raise
+        observation.refresh_from_db()
         return observation
+    observation.refresh_from_db()
+    return observation
 
 
 def _record_terminal(*, work, attempt, worker_id, generation, kind, reason,
-                     observation=None, retry_unknown=False):
+                     observation=None, retry_unknown=False,
+                     evidence_conflict=False, reported_observation_id=None):
     with transaction.atomic():
         attempt = ArchiveAttempt.objects.select_for_update().get(id=attempt.id)
         outcome, _created = ArchiveAttemptOutcome.objects.get_or_create(
@@ -262,7 +327,7 @@ def _record_terminal(*, work, attempt, worker_id, generation, kind, reason,
         ):
             return ArchiveWorkerResult(
                 "archive_worker_fence_stale", work.id, attempt.id,
-                observation.id if observation else None,
+                reported_observation_id or (observation.id if observation else None),
             )
         if kind == ArchiveAttemptOutcome.TARGET_CONFIRMED:
             state, blocker, result = ArchiveWork.STATE_FINISHED, "", "archive_item_confirmed"
@@ -279,11 +344,7 @@ def _record_terminal(*, work, attempt, worker_id, generation, kind, reason,
             return ArchiveWorkerResult(result, work.id, attempt.id,
                                        observation.id if observation else None)
         else:
-            state = (
-                ArchiveWork.STATE_BLOCKED
-                if observation and observation.observed_state == ArchiveReadbackObservation.STATE_CONFLICT
-                else ArchiveWork.STATE_FINISHED
-            )
+            state = ArchiveWork.STATE_BLOCKED if evidence_conflict else ArchiveWork.STATE_FINISHED
             blocker, result = reason, reason
         _finish(
             work=work, worker_id=worker_id, generation=generation,
@@ -291,6 +352,7 @@ def _record_terminal(*, work, attempt, worker_id, generation, kind, reason,
         )
     return ArchiveWorkerResult(
         result, work.id, attempt.id, observation.id if observation else None
+        if reported_observation_id is None else reported_observation_id
     )
 
 
@@ -355,16 +417,22 @@ def run_archive_worker_once(*, worker_id=None, lease_seconds=10, adapter=None,
             kind=ArchiveAttemptOutcome.UNKNOWN, reason="archive_not_observed",
             retry_unknown=True,
         )
+    if not _evidence_well_formed(evidence):
+        return _record_terminal(
+            work=work, attempt=attempt, worker_id=worker_id, generation=generation,
+            kind=ArchiveAttemptOutcome.UNKNOWN, reason="archive_readback_invalid",
+            retry_unknown=True,
+        )
     with transaction.atomic():
         projection = ArchiveProjection.objects.select_for_update().get(id=frozen.projection_id)
         observation = _record_observation(
             projection=projection, attempt=attempt, evidence=evidence
         )
-    if observation.observed_state != ArchiveReadbackObservation.STATE_VERIFIED:
+    if not _observation_matches_projection(observation, projection):
         return _record_terminal(
             work=work, attempt=attempt, worker_id=worker_id, generation=generation,
             kind=ArchiveAttemptOutcome.UNKNOWN, reason="archive_evidence_conflict",
-            observation=observation,
+            evidence_conflict=True, reported_observation_id=observation.id,
         )
     return _record_terminal(
         work=work, attempt=attempt, worker_id=worker_id, generation=generation,
@@ -390,12 +458,14 @@ def reconcile_archive_item(*, actor, organization_id, projection_id, adapter=Non
     evidence = (adapter or LoopbackArchiveAdapter()).readback(frozen)
     if evidence is None:
         return ArchiveWorkerResult("archive_not_observed", projection.work.id, attempt.id)
+    if not _evidence_well_formed(evidence):
+        return ArchiveWorkerResult("archive_readback_invalid", projection.work.id, attempt.id)
     with transaction.atomic():
         projection = ArchiveProjection.objects.select_for_update().get(id=projection.id)
         observation = _record_observation(
             projection=projection, attempt=attempt, evidence=evidence
         )
-        if observation.observed_state == ArchiveReadbackObservation.STATE_VERIFIED:
+        if _observation_matches_projection(observation, projection):
             if not hasattr(attempt, "outcome"):
                 ArchiveAttemptOutcome.objects.create(
                     organization_id=organization_id, attempt=attempt,

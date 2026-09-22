@@ -114,6 +114,8 @@ def _capture_head_race(exc):
 def capture_archive_projection(
         *, actor, organization_id, request_id, encounter_id,
         expected_projection_id):
+    if connection.in_atomic_block:
+        raise CommandError("archive_snapshot_outer_transaction_forbidden")
     require_active_membership(actor=actor, organization_id=organization_id)
     request_uuid = _request_uuid(request_id)
     expected_id = _projection_uuid(expected_projection_id, allow_none=True)
@@ -244,7 +246,7 @@ def queue_archive_batch(
             return _result_from_receipt(replay)
         projections = ArchiveProjection.objects.filter(
             organization_id=organization_id, id__in=ordered_ids
-        )
+        ).order_by("id")
         by_id = {item.id: item for item in projections}
         if len(by_id) != len(ordered_ids):
             raise CommandError("archive_projection_not_found")
@@ -252,7 +254,7 @@ def queue_archive_batch(
             item.projection_id: item
             for item in ArchiveWork.objects.select_for_update().filter(
                 organization_id=organization_id, projection_id__in=sorted(ordered_ids)
-            ).select_related("scheduled_authorization")
+            ).select_related("scheduled_authorization").order_by("projection_id")
         }
         batch = ArchiveBatch.objects.create(
             organization_id=organization_id, created_by=actor
@@ -331,6 +333,17 @@ def retry_archive_item(
         )
         if replay:
             return _result_from_receipt(replay)
+        if projection.readback_observations.filter(
+            observed_state="verified",
+            reported_organization_id=organization_id,
+            reported_encounter_id=projection.encounter_id,
+            reported_projection_id=projection.id,
+            reported_projection_version=projection.version,
+            reported_digest=projection.projection_digest,
+            reported_byte_length=projection.byte_length,
+            received_bytes=projection.projection_bytes,
+        ).exists():
+            raise CommandError("archive_retry_not_allowed")
         latest = ArchiveAttempt.objects.filter(
             organization_id=organization_id, projection=projection,
         ).select_related("outcome").order_by("-started_at", "id").first()
@@ -340,10 +353,7 @@ def retry_archive_item(
             "unknown", "target_rejected", "pre_write_failed",
         }:
             raise CommandError("archive_retry_not_allowed")
-        if work.state in {ArchiveWork.STATE_PENDING, ArchiveWork.STATE_LEASED} and (
-            work.scheduled_authorization.kind == ArchiveAuthorization.KIND_MANUAL
-            and work.scheduled_authorization.expected_predecessor_attempt_id == latest.id
-        ):
+        if work.state in {ArchiveWork.STATE_PENDING, ArchiveWork.STATE_LEASED}:
             authorization = work.scheduled_authorization
             result_code = "archive_retry_already_scheduled"
             receipt = ArchiveCommandReceipt.objects.create(
