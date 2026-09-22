@@ -1,6 +1,6 @@
 # F2: accepted services and approved claim revisions
 
-Status: reviewed detailed synthetic contract, accepted and admitted for implementation by merge of PR #3. F1 evidence is accepted. On main containing this card, F2 may proceed; an unmerged review branch alone does not grant entry. F3 remains closed. Decision owner: Astra; delivery owner: Sol.
+Status: F2 implementation accepted by Astra and merged through PR #6. F3 implementation is admitted only by merge of the explicit [admission record](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment); admission does not establish F3 completion or acceptance. F4 runtime remains closed. Decision owner: Astra; delivery owner: Sol.
 
 ## Outcome and boundary
 
@@ -127,6 +127,6 @@ Accepted direction from the charter: records owns accepted services; claims owns
 
 Deliberately bounded choices: one claim case per encounter, integer quantities, USD-only synthetic values, manual synthetic service entry, fixed fixture policy versions, immutable database envelope, dynamic approval invalidation and one operator role. Rejected for F2: deriving billing codes from notes, generic policy engines, broad identity correction, automatic service inclusion, automatic approval carry-forward and durable dispatch infrastructure.
 
-Remaining production questions: actual coding/coverage/pricing, fractional units and currencies, split or corrected claims after external effects, separation of duties, identity reversal and private retention. None is answered by these fixtures. F3 still requires an explicit intent/authorization/attempt/receiver card after F2 acceptance.
+Remaining production questions: actual coding/coverage/pricing, fractional units and currencies, split or corrected claims after external effects, separation of duties, identity reversal and private retention. None is answered by these fixtures. The reviewed F3 intent/authorization/attempt/receiver card requires F2 acceptance and merge of the explicit F3 implementation admission record before delivery begins.
 
-Sol's assignment begins only after the entry gate is recorded. Outcome and ownership are this card; inputs are the merged F1, charter and this file. Privacy classification is public synthetic only. Dependencies are the accepted records query and schema seams before a test lane begins. Acceptance evidence is the suite above. Stop after draft PR/evidence for Astra, or escalate a contract contradiction or two failed attempts at one approach. No F3 work or merge by the delivery agent.
+The following F2 delivery assignment is historical now that F2 is accepted; the separate F3 admission record governs subsequent F3 work. Sol's F2 assignment begins only after the F2 entry gate is recorded. Outcome and ownership are this card; inputs are the merged F1, charter and this file. Privacy classification is public synthetic only. Dependencies are the accepted records query and schema seams before a test lane begins. Acceptance evidence is the suite above. Stop after draft PR/evidence for Astra, or escalate a contract contradiction or two failed attempts at one approach. Under this F2 assignment, no F3 work or merge by the delivery agent is authorized.

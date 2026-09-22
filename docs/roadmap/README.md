@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 has an accepted synthetic intake and identity foundation (F1); later milestones remain in design and implementation planning. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has accepted synthetic intake/identity (F1) and service/claim approval (F2) foundations. Durable synthetic delivery (F3) is the next implementation milestone; later milestones remain gated. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2 is admitted by merge of PR #3 under its detailed card; F3-F4 remain gated.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2 is accepted through merged PR #6. F3 requires the explicit merge-dependent admission in the handoff; F4 runtime remains gated.
 
 ## Milestones
 
@@ -23,6 +23,6 @@ Work is coordinated through bounded assignments: Astra owns architecture and con
 
 - [F2: accepted services and approved claim revisions](F2_SERVICE_CLAIM_CARD.md) defines the service, claim, approval and concurrency interfaces accepted by merge of PR #3. Main containing that card admits F2 implementation.
 
-- [F3 durable delivery and uncertainty contract](F3_DELIVERY_CARD.md) defines the reviewed effect boundary and independent receiver evidence. F3 runtime remains gated on accepted F2 evidence and an explicit reviewed admission record.
+- [F3 durable delivery and uncertainty contract](F3_DELIVERY_CARD.md) defines the reviewed effect boundary and independent receiver evidence. F3 runtime is admitted only when its explicit admission record in the handoff is merged.
 
 - [F4 inbound outcomes and delayed archive contract](F4_OUTCOMES_ARCHIVE_CARD.md) defines synthetic attribution, conserved postings and independent archive readback. F4 runtime remains gated on accepted F3 evidence and an explicit reviewed admission record.

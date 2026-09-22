@@ -1,6 +1,6 @@
 # Foundation work cards
 
-Status: F1 is accepted. Merge of PR #3 admits F2 under its detailed card; on main containing that card, F2 implementation may proceed. F3-F4 remain gated milestone contracts requiring detailed policy/interface review. No live external effect or real data is admitted.
+Status: F1 and F2 are accepted; F2 merged through PR #6. F3 implementation is admitted only by merge of the explicit admission record in [the delivery handoff](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment). F4 runtime remains gated. Only the F3 card's separate synthetic loopback receiver is authorized; no live integration or real data is admitted.
 
 Read the [charter](../architecture/CHARTER.md) and [stack decision](../decisions/0001-foundation-stack.md). Sol owns delivery; Astra owns architectural exceptions and acceptance.
 
@@ -95,13 +95,13 @@ Prove accepted correction survives reparse/restart, excluded work has a reason, 
 
 ## F3: durable effects and uncertainty
 
-Entry: F2 accepted and attempt/authorization/route schema reviewed. Add a PostgreSQL durable work owner and a separately observing fake receiver. Bind authorization, exact bytes, destination and attempt. Exercise pre-dispatch failure, post-dispatch loss, worker restart, duplicate pickup and receiver without idempotency.
+Entry: F2 accepted, the detailed F3 contract reviewed, and the explicit F3 implementation admission record merged on main. Add a PostgreSQL durable work owner and a separately observing fake receiver. Bind authorization, exact bytes, destination and attempt. Exercise pre-dispatch failure, post-dispatch loss, worker restart, duplicate pickup and receiver without idempotency.
 
 Prove supported duplicates are suppressed and uncertain effects remain unresolved without automatic resend. Independent received bytes/identity establish receiver observations; producer booleans do not. No real payer endpoint.
 
 ## F4: inbound outcomes and delayed archive
 
-Entry: F3 accepted and synthetic posting semantics approved. Ingest synthetic lifecycle and remittance separately; match explicit identities, deduplicate inbound deliveries and keep conflicting/unmatched items in review. Add only the financial posting semantics the reviewed fixture contract establishes.
+Entry: F3 accepted, the detailed F4 contract and synthetic posting semantics reviewed, and a separate explicit F4 runtime admission record merged on main. Ingest synthetic lifecycle and remittance separately; match explicit identities, deduplicate inbound deliveries and keep conflicting/unmatched items in review. Add only the financial posting semantics the reviewed fixture contract establishes.
 
 Send versioned projections to a fake archival target with item readback. Prove partial failure, unknown completion, repeated batch and normal canonical operation during archive outage. Do not infer adjudication from acknowledgment or cash settlement from remittance.
 
