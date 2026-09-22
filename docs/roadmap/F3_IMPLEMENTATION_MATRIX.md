@@ -97,3 +97,9 @@ At the `8b42173` evidence checkpoint, PR #8 remained unmerged and the final
 documentation head still required its own normal checks. This matrix does not
 claim deployed qualification, live interoperability, production readiness, or
 F4 authorization. Follow the PR link in the handoff for current repository state.
+
+## Final acceptance and merge
+
+Astra accepted final head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4`; [run 35719081505](https://github.com/katanada2/MediCafe-v1/actions/runs/35719081505) passed all 149 tests in 147.898 seconds, migrations, checks and drift verification. GitGuardian passed. Additional coverage establishes immutable receipt identity anchors, populated downgrade refusal before latest migration reversal, truthful expired-lease recovery, duplicate acceptance completing retry history, and attempt-specific rejection at helper, worker and reconciliation boundaries. Earlier rows retain their historical execution evidence.
+
+[PR #8](https://github.com/katanada2/MediCafe-v1/pull/8) was verified merged on 2026-09-22 as `0033e5c892a40535fb06200432cb62e68cfba69b` after all three automated review findings were addressed. This accepts synthetic F3 only.

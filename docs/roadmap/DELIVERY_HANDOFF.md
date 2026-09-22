@@ -9,7 +9,7 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
 - Astra accepted F2 on 2026-09-22 and merged [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6) at `87526383052ebb68395fe1fe14f26f901bd5c952`. Its bounded service/claim authority is synthetic only.
-- F3 runtime is admitted by merge of the admission record below. Main containing this record is the entry gate; an unmerged branch is not authorization. F4 runtime remains closed. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
+- F3 is accepted and merged through PR #8 at `0033e5c892a40535fb06200432cb62e68cfba69b`; final evidence is recorded below. F4 implementation is admitted only from main containing the merged [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md). An unmerged branch is not authorization. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
 
 ## F1 acceptance evidence
 
@@ -105,3 +105,9 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 - [F2 contract PR #3](https://github.com/katanada2/MediCafe-v1/pull/3): F2 admission decision: merging this record accepts the card and opens implementation. On main containing this record, F2 is admitted.
 - [F1 implementation PR #2](https://github.com/katanada2/MediCafe-v1/pull/2): verified merged 2026-09-22, accepted evidence above.
 - [Charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1): verified merged; established the initial F1 entry gate.
+
+## Final F3 acceptance and F4 handoff
+
+As of 2026-09-22, [F3 PR #8](https://github.com/katanada2/MediCafe-v1/pull/8) is accepted and verified merged at `0033e5c892a40535fb06200432cb62e68cfba69b`. Final implementation head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4` passed [run 35719081505](https://github.com/katanada2/MediCafe-v1/actions/runs/35719081505): all 149 tests in 147.898 seconds, PostgreSQL migrations, Django checks and drift verification; GitGuardian passed. All three inline review findings were resolved after focused code/regression review. This supersedes the earlier dated premerge checkpoint, whose evidence remains historical.
+
+The [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md) defines the next entry gate, claims-owned historical attribution and serialization contract, and Sol's ownership/checkpoints. Runtime starts only from main containing that merged record. Astra retains final acceptance and merge ownership. V0 production authority remains unchanged.
