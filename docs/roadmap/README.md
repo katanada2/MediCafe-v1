@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 is in architecture and foundation planning. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has an accepted synthetic intake and identity foundation (F1); later milestones remain in design and implementation planning. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for the admitted F1 implementation scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2-F4 remain gated.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2 is admitted by merge of PR #3 under its detailed card; F3-F4 remain gated.
 
 ## Milestones
 
@@ -18,3 +18,7 @@ See [foundation cards](FOUNDATION_CARDS.md) for the admitted F1 implementation s
 Each milestone needs a demonstrable outcome, acceptance evidence, and a clear owner before it is considered complete. The foundation grows the same running application through the dependency-ordered sequence in the [V1 plan](../architecture/MEDICAFE_V1_PLAN.md). Policy gaps stay visible and block only the affected capability.
 
 Work is coordinated through bounded assignments: Astra owns architecture and consequential decisions; right-sized agents handle settled, reviewable slices; at most two implementation lanes run at once; and each shared production seam has one writer.
+
+## Detailed foundation contracts
+
+- [F2: accepted services and approved claim revisions](F2_SERVICE_CLAIM_CARD.md) defines the service, claim, approval and concurrency interfaces accepted by merge of PR #3. Main containing that card admits F2 implementation.
