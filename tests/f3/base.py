@@ -11,10 +11,9 @@ from tests.f2.base import F2TestCase, F2TransactionTestCase
 
 
 class F3FixtureMixin:
-    def approved_claim(self, *, route_version="v1", note="SYNTHETIC_F2_OBSERVATION",
-                       service_code="SYN-A"):
+    def approved_claim(self, *, route_version="v1", note="SYNTHETIC_F2_OBSERVATION"):
         _, observation, resolved = self.resolved_observation(note=note)
-        service = self.accepted_service(resolved, observation, code=service_code)
+        service = self.accepted_service(resolved, observation)
         prepared = prepare_claim_revision(
             actor=self.alpha_user, organization_id=self.alpha.id,
             request_id=uuid.uuid4(), encounter_id=resolved.encounter_id,

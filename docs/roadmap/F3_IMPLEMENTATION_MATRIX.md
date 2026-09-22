@@ -52,7 +52,7 @@ does not turn planned evidence into completion evidence.
 | 7 | v1 idempotent retry, concurrent retry, v2 no resend | `test_crash_windows.CrashWindowProcessTests` response-loss tests; `test_reconciliation.ReconciliationEvidenceTests` retry tests; new `test_concurrency.WorkerFenceRaceTests.test_concurrent_retry_commands_schedule_once` | Sequential v1/v2 cases executed at `8bc9b84`; concurrent retry newer/unrun |
 | 8 | Late/duplicate/conflicting evidence and original attribution | `test_reconciliation.ReconciliationEvidenceTests`; `test_integrity.DispatchFenceSQLTests` evidence tests | Executed at `8bc9b84`, including canonical receipt/observation guards |
 | 9 | Slot exclusion and safe monotone release | `test_slot.ClaimDeliveryControlTests` four named tests | Executed at `8bc9b84` |
-| 10 | SQL integrity, authorization, CSRF and bounded errors | `test_integrity.DispatchFenceSQLTests`; `test_web.DeliveryWebTests`; new `test_authorization.DeliveryAuthorizationTests` | Integrity/web executed at `8bc9b84`; complete caller matrix delegated and not yet executed |
+| 10 | SQL integrity, authorization, CSRF and bounded errors | `test_integrity.DispatchFenceSQLTests`; `test_relationships.F3RelationshipSQLTests`; `test_web.DeliveryWebTests`; `test_authorization.DeliveryAuthorizationTests` | Base integrity/web executed at `8bc9b84`; caller matrix executed at `4c567d6`; ten relationship-class negatives are newer/unrun |
 | 11 | Fresh processes preserve pending/unknown/supplementary evidence; payload sentinel stays out of process output | `test_process_delivery.ProcessDeliveryTests.test_exact_bytes_each_receiver_survive_receiver_and_worker_restart`; `test_crash_windows.CrashWindowProcessTests.test_v1_commit_response_loss_then_explicit_retry_has_one_durable_acceptance` with fresh `query_state` processes; new `test_process_delivery.ProcessDeliveryTests.test_synthetic_payload_sentinel_is_absent_from_process_output` | Restart and fresh-state paths executed at `8bc9b84`; explicit sentinel assertion newer/unrun |
 | 12 | Receiver outage/readback failure without false completion or UI loss | `test_process_delivery.ReceiverOutageTests.test_receiver_outage_has_no_false_completion_resend_or_route_fallback` | Executed at `8bc9b84` |
 
@@ -78,6 +78,14 @@ does not turn planned evidence into completion evidence.
 - `8bc9b84eea0882f02b0a1a93f79147b770f66f61`, CI `35711730214`:
   migrations, Django check, migration drift, F2-to-F3 upgrade regression, and
   all 120 F1/F2/F3 tests passed in 108.865 seconds.
+- `4c567d698caabb20d7eb37369f614566786c95e5`, CI `35713012171`:
+  migrations/check/drift and all 130 tests passed in 130.189 seconds, including
+  both actual worker-kill windows and the membership/Encounter lock-order case.
+- `c333e603bc324fae22f3f938df18feb09a26c1a2`, CI `35713520220`:
+  migrations/check/drift passed; 132 of 133 tests passed in 133.275 seconds.
+  The sole error was a test-only sentinel service code rejected by the existing
+  synthetic policy; the next packet uses the already serialized synthetic
+  patient UUID instead. Competing-revision and corrupt-read cases passed.
 
 The current working tree adds the explicitly marked unrun cases above. They
 require a new exact-head PostgreSQL run. PR #8 remains draft; this matrix does

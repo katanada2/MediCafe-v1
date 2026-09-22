@@ -84,9 +84,9 @@ class ProcessDeliveryTests(F3TransactionTestCase):
                 self.assertEqual(evidence.received_bytes, bytes(revision.envelope_bytes))
 
     def test_synthetic_payload_sentinel_is_absent_from_process_output(self):
-        sentinel = f"SENTINEL-{uuid.uuid4().hex[:12]}"
         self.receiver.start()
-        _, revision, _ = self.approved_claim(note=sentinel, service_code=sentinel)
+        _, revision, _ = self.approved_claim()
+        sentinel = str(revision.patient_id)
         requested = request_delivery(
             actor=self.alpha_user, organization_id=self.alpha.id,
             request_id=uuid.uuid4(), claim_revision_id=revision.id,
