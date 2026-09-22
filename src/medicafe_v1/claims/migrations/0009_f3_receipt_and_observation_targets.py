@@ -50,6 +50,16 @@ CREATE TRIGGER claims_observation_route_guard
 
 
 REVERSE_SQL = r"""
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM claims_deliveryintent)
+     OR EXISTS (SELECT 1 FROM claims_claimscommandreceipt
+       WHERE command_kind IN ('request_delivery','cancel_before_dispatch','retry_idempotent_delivery')) THEN
+    RAISE EXCEPTION 'populated F3 rollback is unsupported; repair forward or restore a consistent pre-F3 backup'
+      USING ERRCODE='55000';
+  END IF;
+END;
+$$;
 DROP TRIGGER IF EXISTS claims_observation_route_guard ON claims_receiverobservation;
 DROP FUNCTION IF EXISTS claims_f3_observation_route_guard();
 DROP TRIGGER IF EXISTS claims_receipt_f3_target ON claims_claimscommandreceipt;

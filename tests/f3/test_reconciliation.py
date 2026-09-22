@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from medicafe_v1.claims.delivery_adapter import ReceiverEvidence, TransportResult
 from medicafe_v1.claims.delivery_commands import (
-    reconcile_delivery, request_delivery, retry_idempotent_delivery,
+    _record_evidence, reconcile_delivery, request_delivery, retry_idempotent_delivery,
 )
 from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
 from medicafe_v1.claims.models import (
@@ -131,6 +131,53 @@ class ReconciliationEvidenceTests(F3TransactionTestCase):
         observation = ReceiverObservation.objects.get(intent_id=requested.intent_id)
         self.assertEqual(observation.reported_attempt_id, original.id)
         self.assertEqual(DeliveryAttempt.objects.filter(intent_id=requested.intent_id).count(), 2)
+
+    def test_duplicate_acceptance_completes_retry_attempt_without_rewriting_provenance(self):
+        _, requested, original = self.uncertain_intent(version="v1")
+        retry_idempotent_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), intent_id=requested.intent_id,
+            expected_attempt_id=original.id,
+        )
+
+        class MarkerStop(Exception):
+            pass
+
+        frozen = None
+        try:
+            run_delivery_worker_once(
+                worker_id="duplicate-evidence-retry", lease_seconds=2,
+                adapter=ReadbackAdapter(None),
+                after_marker=lambda value: (_ for _ in ()).throw(MarkerStop(value)),
+            )
+        except MarkerStop as stopped:
+            frozen = stopped.args[0]
+        self.assertIsNotNone(frozen)
+        retry_attempt = DeliveryAttempt.objects.get(id=frozen.attempt_id)
+        evidence = accepted_evidence(
+            frozen, reported_attempt_id=str(original.id),
+            receipt_id="duplicate-race-receipt",
+        )
+        intent = DeliveryIntent.objects.select_related("claim_revision").get(
+            id=requested.intent_id
+        )
+
+        first = _record_evidence(
+            intent=intent, attempt=original, evidence=evidence,
+            origin=ReceiverObservation.ORIGIN_RECONCILIATION, finish_work=False,
+        )
+        replay = _record_evidence(
+            intent=intent, attempt=retry_attempt, evidence=evidence,
+            origin=ReceiverObservation.ORIGIN_DISPATCH, finish_work=False,
+        )
+
+        self.assertEqual(replay.id, first.id)
+        self.assertEqual(replay.reported_attempt_id, original.id)
+        retry_attempt.refresh_from_db()
+        self.assertEqual(retry_attempt.outcome.kind, AttemptOutcome.RECEIVER_ACCEPTED)
+        self.assertEqual(retry_attempt.outcome.receiver_observation_id, first.id)
+        original.refresh_from_db()
+        self.assertEqual(original.outcome.kind, AttemptOutcome.UNKNOWN)
 
     def test_v2_unknown_has_no_retry_authority(self):
         _, requested, attempt = self.uncertain_intent(version="v2")

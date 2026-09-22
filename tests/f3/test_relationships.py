@@ -313,6 +313,36 @@ class F3RelationshipSQLTests(F3FixtureMixin, F2TransactionTestCase):
             with transaction.atomic():
                 self._attempt()
 
+    def test_expired_marker_recovery_preserves_verified_outcome(self):
+        self._lease_work(seconds=0.1)
+        attempt = self._attempt()
+        observation = self._observation(attempt)
+        outcome = AttemptOutcome.objects.create(
+            organization=self.alpha, attempt=attempt,
+            kind=AttemptOutcome.RECEIVER_ACCEPTED,
+            reason="accepted", ended_at=timezone.now(),
+            receiver_observation=observation,
+        )
+        time.sleep(0.25)
+
+        from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
+
+        class RecoveryOnlyAdapter:
+            timeout = 0.1
+
+        recovered = run_delivery_worker_once(
+            worker_id="verified-outcome-recovery", lease_seconds=2,
+            adapter=RecoveryOnlyAdapter(),
+        )
+
+        self.assertEqual(recovered.reason_code, "receiver_evidence_recorded")
+        outcome.refresh_from_db()
+        self.assertEqual(outcome.kind, AttemptOutcome.RECEIVER_ACCEPTED)
+        self.assertEqual(outcome.reason, "accepted")
+        self.work.refresh_from_db()
+        self.assertEqual(self.work.state, DeliveryWork.STATE_FINISHED)
+        self.assertEqual(self.work.blocking_reason, "")
+
     def test_work_fence_rejects_rewind_and_skip(self):
         self._lease_work()
         for new_generation in (0, 3):

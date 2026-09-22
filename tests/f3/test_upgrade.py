@@ -7,7 +7,7 @@ from datetime import date
 
 import django
 from django.apps import apps
-from django.db import IntegrityError, connection, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
@@ -25,6 +25,7 @@ from medicafe_v1.claims.models import (
     ClaimApproval,
     ClaimRevision,
     ClaimsCommandReceipt,
+    DeliveryIntent,
     SyntheticPolicySelection,
 )
 from medicafe_v1.records.models import Encounter, Patient
@@ -308,3 +309,29 @@ class F2ReceiptAttributionRegressionTests(F2TransactionTestCase):
             "claims_receipt_result_shape_ck",
         )
         self.assertNotIn("foreign key", str(raised.exception).lower())
+
+    def test_populated_f3_downgrade_is_refused_before_history_changes(self):
+        revision, _approved = self._approved_revision(
+            note="SYNTHETIC_F3_DOWNGRADE_REFUSAL"
+        )
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        receipt_ids = set(ClaimsCommandReceipt.objects.values_list("id", flat=True))
+
+        with self.assertRaisesMessage(
+            DatabaseError,
+            "populated F3 rollback is unsupported",
+        ):
+            MigrationExecutor(connection).migrate([
+                ("claims", "0008_f3_work_transition_guards")
+            ])
+
+        applied = MigrationExecutor(connection).loader.applied_migrations
+        self.assertIn(("claims", "0009_f3_receipt_and_observation_targets"), applied)
+        self.assertEqual(
+            set(ClaimsCommandReceipt.objects.values_list("id", flat=True)), receipt_ids
+        )
+        self.assertTrue(DeliveryIntent.objects.filter(id=requested.intent_id).exists())

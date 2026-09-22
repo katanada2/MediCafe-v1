@@ -70,17 +70,31 @@ def _recover_expired_marked_work(*, work_id, attempt_id, generation):
             or work.lease_expires_at > now
         ):
             return WorkerResult("recovery_fence_changed", work.id, marked.id)
-        if not AttemptOutcome.objects.filter(attempt=marked).exists():
-            AttemptOutcome.objects.create(
+        outcome = AttemptOutcome.objects.filter(attempt=marked).first()
+        if outcome is None:
+            outcome = AttemptOutcome.objects.create(
                 organization_id=work.organization_id, attempt=marked,
                 kind=AttemptOutcome.UNKNOWN, reason="lease_expired_after_dispatch_marker",
                 ended_at=now,
             )
+        effect_state = delivery_effect_state(marked.intent)
+        if effect_state == "receiver_conflict":
+            work_state = DeliveryWork.STATE_BLOCKED
+            blocking_reason = "receiver_evidence_conflict"
+            result_reason = "receiver_evidence_conflict"
+        elif effect_state in {"receiver_accepted", "receiver_rejected"}:
+            work_state = DeliveryWork.STATE_FINISHED
+            blocking_reason = ""
+            result_reason = "receiver_evidence_recorded"
+        else:
+            work_state = DeliveryWork.STATE_FINISHED
+            blocking_reason = "dispatch_outcome_unknown"
+            result_reason = "dispatch_outcome_unknown"
         DeliveryWork.objects.filter(pk=work.pk).update(
-            state=DeliveryWork.STATE_FINISHED, blocking_reason="dispatch_outcome_unknown",
+            state=work_state, blocking_reason=blocking_reason,
             lease_owner="", lease_expires_at=None,
         )
-    return WorkerResult("dispatch_outcome_unknown", work.id, marked.id)
+    return WorkerResult(result_reason, work.id, marked.id)
 
 
 def _claim_work(*, worker_id, lease_seconds):

@@ -308,6 +308,16 @@ CREATE TRIGGER claims_work_guard BEFORE UPDATE OR DELETE ON claims_deliverywork
 
 
 REVERSE_SQL = r"""
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM claims_deliveryintent)
+     OR EXISTS (SELECT 1 FROM claims_claimscommandreceipt
+       WHERE command_kind IN ('request_delivery','cancel_before_dispatch','retry_idempotent_delivery')) THEN
+    RAISE EXCEPTION 'populated F3 rollback is unsupported; repair forward or restore a consistent pre-F3 backup'
+      USING ERRCODE='55000';
+  END IF;
+END;
+$$;
 DROP TRIGGER IF EXISTS claims_work_guard ON claims_deliverywork;
 DROP TRIGGER IF EXISTS claims_control_guard ON claims_claimdeliverycontrol;
 DROP TRIGGER IF EXISTS claims_outcome_immutable ON claims_attemptoutcome;

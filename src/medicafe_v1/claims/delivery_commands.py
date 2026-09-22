@@ -470,9 +470,11 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
         receipt_id=evidence.receipt_id, organization_id=intent.organization_id,
         intent=intent,
     ).order_by("recorded_at").first()
-    if existing and getattr(existing, "evidence_fingerprint", None) == fingerprint:
-        return existing
-    conflict = existing is not None or not binding_valid
+    exact_replay = (
+        existing is not None
+        and getattr(existing, "evidence_fingerprint", None) == fingerprint
+    )
+    conflict = (existing is not None and not exact_replay) or not binding_valid
     try:
         observed_at = parse_datetime(evidence.observed_at)
     except (TypeError, ValueError, OverflowError):
@@ -502,17 +504,20 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
         "reported_envelope_digest": evidence.envelope_digest,
         "reported_byte_length": evidence.byte_length,
     }
-    try:
-        with transaction.atomic():
-            observation = ReceiverObservation.objects.create(**values)
-    except IntegrityError:
-        observation = ReceiverObservation.objects.filter(
-            organization_id=intent.organization_id, intent=intent,
-            receiver_id=RECEIVER_ID, receiver_version=intent.receiver_version,
-            receipt_id=evidence.receipt_id, evidence_fingerprint=fingerprint,
-        ).first()
-        if observation is None:
-            raise
+    if exact_replay:
+        observation = existing
+    else:
+        try:
+            with transaction.atomic():
+                observation = ReceiverObservation.objects.create(**values)
+        except IntegrityError:
+            observation = ReceiverObservation.objects.filter(
+                organization_id=intent.organization_id, intent=intent,
+                receiver_id=RECEIVER_ID, receiver_version=intent.receiver_version,
+                receipt_id=evidence.receipt_id, evidence_fingerprint=fingerprint,
+            ).first()
+            if observation is None:
+                raise
     observation.refresh_from_db()
     if observation.binding_valid and not hasattr(attempt, "outcome"):
         kind = (
