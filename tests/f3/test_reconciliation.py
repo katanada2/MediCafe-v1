@@ -10,7 +10,8 @@ from medicafe_v1.claims.delivery_commands import (
 )
 from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
 from medicafe_v1.claims.models import (
-    AttemptOutcome, DeliveryAttempt, DeliveryIntent, ReceiverObservation,
+    AttemptOutcome, DeliveryAttempt, DeliveryIntent, DeliveryWork,
+    ReceiverObservation,
 )
 from medicafe_v1.claims.queries import delivery_effect_state
 from medicafe_v1.sources.domain import CommandError
@@ -58,6 +59,20 @@ def accepted_evidence(frozen, *, reported_attempt_id=None, receipt_id=None,
         reported_attempt_id=reported_attempt_id or frozen.attempt_id,
         envelope_digest=frozen.envelope_digest, byte_length=frozen.byte_length,
         received_bytes=received, no_acceptance_guaranteed=False,
+        observed_at=timezone.now().isoformat(),
+    )
+
+
+def rejected_evidence(frozen, *, reported_attempt_id=None, receipt_id=None):
+    return ReceiverEvidence(
+        state="rejected", receiver_id=frozen.receiver_id,
+        receiver_version=frozen.receiver_version,
+        organization_id=frozen.organization_id, intent_id=frozen.intent_id,
+        claim_revision_id=frozen.claim_revision_id, delivery_key=frozen.delivery_key,
+        receipt_id=receipt_id or f"receipt-{frozen.intent_id}",
+        reported_attempt_id=reported_attempt_id or frozen.attempt_id,
+        envelope_digest=frozen.envelope_digest, byte_length=frozen.byte_length,
+        received_bytes=None, no_acceptance_guaranteed=True,
         observed_at=timezone.now().isoformat(),
     )
 
@@ -178,6 +193,57 @@ class ReconciliationEvidenceTests(F3TransactionTestCase):
         self.assertEqual(retry_attempt.outcome.receiver_observation_id, first.id)
         original.refresh_from_db()
         self.assertEqual(original.outcome.kind, AttemptOutcome.UNKNOWN)
+
+    def test_duplicate_rejection_cannot_settle_a_different_retry_attempt(self):
+        _, requested, original = self.uncertain_intent(version="v1")
+        retry_idempotent_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), intent_id=requested.intent_id,
+            expected_attempt_id=original.id,
+        )
+
+        class MarkerStop(Exception):
+            pass
+
+        frozen = None
+        try:
+            run_delivery_worker_once(
+                worker_id="duplicate-rejection-retry", lease_seconds=2,
+                adapter=ReadbackAdapter(None),
+                after_marker=lambda value: (_ for _ in ()).throw(MarkerStop(value)),
+            )
+        except MarkerStop as stopped:
+            frozen = stopped.args[0]
+        self.assertIsNotNone(frozen)
+        retry_attempt = DeliveryAttempt.objects.get(id=frozen.attempt_id)
+        evidence = rejected_evidence(
+            frozen, reported_attempt_id=str(original.id),
+            receipt_id="duplicate-rejection-race-receipt",
+        )
+        intent = DeliveryIntent.objects.select_related("claim_revision").get(
+            id=requested.intent_id
+        )
+
+        first = _record_evidence(
+            intent=intent, attempt=original, evidence=evidence,
+            origin=ReceiverObservation.ORIGIN_RECONCILIATION, finish_work=False,
+        )
+        replay = _record_evidence(
+            intent=intent, attempt=retry_attempt, evidence=evidence,
+            origin=ReceiverObservation.ORIGIN_DISPATCH, finish_work=True,
+        )
+
+        self.assertEqual(replay.id, first.id)
+        self.assertTrue(replay.binding_valid)
+        self.assertEqual(replay.reported_attempt_id, original.id)
+        self.assertEqual(
+            ReceiverObservation.objects.filter(intent_id=requested.intent_id).count(), 1
+        )
+        self.assertFalse(AttemptOutcome.objects.filter(attempt=retry_attempt).exists())
+        original.refresh_from_db()
+        self.assertEqual(original.outcome.kind, AttemptOutcome.UNKNOWN)
+        work = DeliveryWork.objects.get(intent_id=requested.intent_id)
+        self.assertNotEqual(work.state, DeliveryWork.STATE_FINISHED)
 
     def test_v2_unknown_has_no_retry_authority(self):
         _, requested, attempt = self.uncertain_intent(version="v2")

@@ -519,7 +519,8 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
             if observation is None:
                 raise
     observation.refresh_from_db()
-    if observation.binding_valid and not hasattr(attempt, "outcome"):
+    valid_for_attempt = observation.binding_valid and binding_valid
+    if valid_for_attempt and not hasattr(attempt, "outcome"):
         kind = (
             AttemptOutcome.RECEIVER_ACCEPTED
             if evidence.state == "accepted" else AttemptOutcome.RECEIVER_REJECTED
@@ -528,7 +529,7 @@ def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
             organization_id=intent.organization_id, attempt=attempt, kind=kind,
             reason=evidence.state, ended_at=timezone.now(), receiver_observation=observation,
         )
-    if finish_work and observation.binding_valid and (
+    if finish_work and valid_for_attempt and (
         observation.observed_state == ReceiverObservation.STATE_ACCEPTED
         or _slot_releasable(intent)
     ):

@@ -24,6 +24,12 @@ The canonical application database uses `POSTGRES_DB`, `POSTGRES_USER`,
 `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, and optional
 `POSTGRES_CONNECT_TIMEOUT`. There is no SQLite fallback.
 
+F3 migrations support the normal empty-database and F2-to-F3 forward upgrade
+paths. They intentionally refuse a reverse migration once F3 delivery intents
+or F3 command receipts exist: migration `0009` raises before making any reverse
+schema change. Repair forward or restore a consistent pre-F3 backup instead of
+trying to delete or reclassify durable delivery history.
+
 ## Start the separate synthetic receiver
 
 The receiver is a separate loopback HTTP process. It opens its own psycopg
