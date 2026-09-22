@@ -9,6 +9,7 @@ from psycopg import sql
 from medicafe_v1.claims.delivery_commands import request_delivery
 from medicafe_v1.claims.delivery_adapter import FrozenDelivery, LoopbackReceiverAdapter, RECEIVER_ID
 from medicafe_v1.claims.models import ReceiverObservation
+from tests.helpers.workflow_boundary_contract import assert_delivery_boundary
 
 from .base import F3TransactionTestCase
 from .process_helpers import ReceiverProcess, postgres_kwargs
@@ -41,6 +42,10 @@ class ProcessDeliveryTests(F3TransactionTestCase):
                 observation = ReceiverObservation.objects.get(intent_id=requested.intent_id)
                 self.assertTrue(observation.binding_valid)
                 self.assertEqual(bytes(observation.received_bytes), bytes(revision.envelope_bytes))
+                assert_delivery_boundary(
+                    self, intent=observation.intent, expected_state="receiver_accepted",
+                    expected_possible_attempts=1, expected_valid_observations=1,
+                )
                 with psycopg.connect(**postgres_kwargs()) as conn, conn.cursor() as cursor:
                     cursor.execute(sql.SQL("""
                         SELECT received_bytes,envelope_digest,attempt_id,receipt_id

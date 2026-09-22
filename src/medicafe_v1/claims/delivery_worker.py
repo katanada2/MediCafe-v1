@@ -221,9 +221,21 @@ def _admit_dispatch(*, work_id, worker_id, generation):
                 raise CommandError("delivery_intent_not_current")
             effect_state = delivery_effect_state(intent)
             if receipt.command_kind == "request_delivery" and effect_state not in {"leased", "pending"}:
-                raise CommandError("delivery_effect_state_changed")
+                _finish_with_token(
+                    work=work, worker_id=worker_id, generation=generation,
+                    state=(DeliveryWork.STATE_BLOCKED if effect_state == "receiver_conflict"
+                           else DeliveryWork.STATE_FINISHED),
+                    reason="delivery_effect_state_changed",
+                )
+                return None, WorkerResult("delivery_effect_state_changed", work.id)
             if receipt.command_kind == "retry_idempotent_delivery" and effect_state != "uncertain":
-                raise CommandError("delivery_retry_evidence_changed")
+                _finish_with_token(
+                    work=work, worker_id=worker_id, generation=generation,
+                    state=(DeliveryWork.STATE_BLOCKED if effect_state == "receiver_conflict"
+                           else DeliveryWork.STATE_FINISHED),
+                    reason="delivery_retry_evidence_changed",
+                )
+                return None, WorkerResult("delivery_retry_evidence_changed", work.id)
             actionability = claim_actionability(
                 actor=authorizer, organization_id=intent.organization_id,
                 claim_revision_id=intent.claim_revision_id,
@@ -333,7 +345,7 @@ def run_delivery_worker_once(*, worker_id=None, lease_seconds=10, adapter=None,
         attempt = DeliveryAttempt.objects.select_for_update().get(id=frozen.attempt_id)
         observation = _record_evidence(
             intent=intent, attempt=attempt, evidence=evidence,
-            origin="dispatch_readback",
+            origin="dispatch_readback", finish_work=False,
         )
         if observation.binding_valid:
             _finish_with_token(

@@ -11,6 +11,31 @@ from django.test import SimpleTestCase
 from medicafe_v1.sources.models import Observation, ParseAttempt, ParseResult
 
 
+def assert_delivery_boundary(testcase: SimpleTestCase, *, intent, expected_state: str,
+                             expected_possible_attempts: int,
+                             expected_valid_observations: int):
+    """Assert F3 target, authorization, attempts, outcomes, and evidence agree."""
+    from medicafe_v1.claims.queries import delivery_effect_state
+
+    intent.refresh_from_db()
+    testcase.assertEqual(intent.delivery_key, intent.id)
+    testcase.assertEqual(intent.claim_revision_id, intent.claim_approval.claim_revision_id)
+    testcase.assertEqual(intent.envelope_digest, intent.claim_revision.envelope_digest)
+    testcase.assertEqual(intent.byte_length, len(bytes(intent.claim_revision.envelope_bytes)))
+    testcase.assertEqual(intent.initial_authorization_receipt.result_delivery_intent_id, intent.id)
+    testcase.assertEqual(intent.initial_authorization_receipt.accepted_by_id, intent.authorized_by_id)
+    attempts = list(intent.attempts.order_by("ordinal"))
+    testcase.assertEqual(sum(item.possible_dispatch for item in attempts), expected_possible_attempts)
+    testcase.assertTrue(all(item.intent_id == intent.id for item in attempts))
+    testcase.assertTrue(all(item.payload_digest == intent.envelope_digest for item in attempts))
+    valid = list(intent.observations.filter(binding_valid=True))
+    testcase.assertEqual(len(valid), expected_valid_observations)
+    testcase.assertTrue(all(item.intent_id == intent.id for item in valid))
+    testcase.assertTrue(all(item.lookup_key == intent.delivery_key for item in valid))
+    testcase.assertEqual(delivery_effect_state(intent), expected_state)
+    return intent
+
+
 def assert_parse_boundary(testcase: SimpleTestCase, *, delivery, parser_version: str,
                           expected_observations: int, expected_attempts: int,
                           expected_successes: int | None = None) -> ParseResult:

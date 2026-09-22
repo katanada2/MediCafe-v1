@@ -141,7 +141,7 @@ END;
 $$;
 
 CREATE FUNCTION claims_f3_intent_receipt_guard() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE receipt_org uuid; receipt_kind varchar; receipt_actor bigint; receipt_intent uuid; receipt_work uuid;
+DECLARE receipt_org uuid; receipt_kind varchar; receipt_actor uuid; receipt_intent uuid; receipt_work uuid;
 BEGIN
   SELECT organization_id, command_kind, accepted_by_id, result_delivery_intent_id,
          result_delivery_work_id

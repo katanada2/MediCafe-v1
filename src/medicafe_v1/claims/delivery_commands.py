@@ -41,6 +41,7 @@ class DeliveryCommandResult:
     replayed: bool = False
     historical_status: str | None = None
     current_status: str | None = None
+    current_blockers: tuple[str, ...] = ()
 
 
 def _uuid(value, reason):
@@ -73,8 +74,12 @@ def _receipt_replay(*, organization_id, request_id, digest, command_kind):
     return receipt
 
 
-def _result_from_receipt(receipt, *, replayed):
+def _result_from_receipt(receipt, *, replayed, actor):
     intent = receipt.result_delivery_intent
+    actionability = claim_actionability(
+        actor=actor, organization_id=receipt.organization_id,
+        claim_revision_id=intent.claim_revision_id,
+    )
     return DeliveryCommandResult(
         receipt.result_code,
         intent.id,
@@ -83,6 +88,7 @@ def _result_from_receipt(receipt, *, replayed):
         replayed,
         receipt.result_code,
         delivery_effect_state(intent),
+        actionability.blockers,
     )
 
 
@@ -142,7 +148,7 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
         command_kind="request_delivery",
     )
     if replay:
-        return _result_from_receipt(replay, replayed=True)
+        return _result_from_receipt(replay, replayed=True, actor=actor)
     try:
         scoped = ClaimRevision.objects.select_related("claim").get(
             organization_id=organization_id, id=revision_id
@@ -165,7 +171,7 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
             command_kind="request_delivery",
         )
         if replay:
-            return _result_from_receipt(replay, replayed=True)
+            return _result_from_receipt(replay, replayed=True, actor=actor)
         if scoped.envelope_digest != envelope_digest:
             raise CommandError("claim_envelope_digest_conflict")
         existing = DeliveryIntent.objects.filter(
@@ -186,7 +192,7 @@ def request_delivery(*, actor, organization_id, request_id, claim_revision_id,
                 result_delivery_work=existing.work, result_code="delivery_coalesced",
                 accepted_by=actor,
             )
-            return _result_from_receipt(receipt, replayed=False)
+            return _result_from_receipt(receipt, replayed=False, actor=actor)
         envelope = bytes(scoped.envelope_bytes)
         if hashlib.sha256(envelope).hexdigest() != envelope_digest:
             raise CommandError("envelope_unavailable")
@@ -253,7 +259,7 @@ def cancel_before_dispatch(*, actor, organization_id, request_id, intent_id):
         command_kind="cancel_before_dispatch",
     )
     if replay:
-        return _result_from_receipt(replay, replayed=True)
+        return _result_from_receipt(replay, replayed=True, actor=actor)
     try:
         scoped = DeliveryIntent.objects.select_related("claim_revision").get(
             organization_id=organization_id, id=target_id
@@ -269,7 +275,7 @@ def cancel_before_dispatch(*, actor, organization_id, request_id, intent_id):
             command_kind="cancel_before_dispatch",
         )
         if replay:
-            return _result_from_receipt(replay, replayed=True)
+            return _result_from_receipt(replay, replayed=True, actor=actor)
         if control.current_intent_id != intent.id:
             raise CommandError("delivery_intent_not_current")
         if intent.attempts.filter(possible_dispatch=True).exists():
@@ -288,7 +294,7 @@ def cancel_before_dispatch(*, actor, organization_id, request_id, intent_id):
             intent_digest=digest, result_delivery_intent=intent,
             result_delivery_work=work, result_code=result_code, accepted_by=actor,
         )
-    return _result_from_receipt(receipt, replayed=False)
+    return _result_from_receipt(receipt, replayed=False, actor=actor)
 
 
 def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
@@ -307,7 +313,7 @@ def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
         command_kind="retry_idempotent_delivery",
     )
     if replay:
-        return _result_from_receipt(replay, replayed=True)
+        return _result_from_receipt(replay, replayed=True, actor=actor)
     try:
         scoped = DeliveryIntent.objects.select_related("claim_revision").get(
             organization_id=organization_id, id=target_id
@@ -325,7 +331,7 @@ def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
             command_kind="retry_idempotent_delivery",
         )
         if replay:
-            return _result_from_receipt(replay, replayed=True)
+            return _result_from_receipt(replay, replayed=True, actor=actor)
         if control.current_intent_id != intent.id:
             raise CommandError("delivery_intent_not_current")
         try:
@@ -366,7 +372,7 @@ def retry_idempotent_delivery(*, actor, organization_id, request_id, intent_id,
                 due_at=timezone.now(), lease_owner="", lease_expires_at=None,
                 blocking_reason="",
             )
-    return _result_from_receipt(receipt, replayed=False)
+    return _result_from_receipt(receipt, replayed=False, actor=actor)
 
 
 def _frozen(intent, attempt):
@@ -380,7 +386,7 @@ def _frozen(intent, attempt):
     )
 
 
-def _record_evidence(*, intent, attempt, evidence, origin):
+def _record_evidence(*, intent, attempt, evidence, origin, finish_work=True):
     payload = bytes(intent.claim_revision.envelope_bytes)
     common_valid = (
         evidence.receiver_id == RECEIVER_ID
@@ -471,7 +477,7 @@ def _record_evidence(*, intent, attempt, evidence, origin):
             organization_id=intent.organization_id, attempt=attempt, kind=kind,
             reason=evidence.state, ended_at=timezone.now(), receiver_observation=observation,
         )
-    if observation.binding_valid and (
+    if finish_work and observation.binding_valid and (
         observation.observed_state == ReceiverObservation.STATE_ACCEPTED
         or _slot_releasable(intent)
     ):
