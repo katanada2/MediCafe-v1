@@ -11,9 +11,14 @@ from medicafe_v1.records.queries import (
 from medicafe_v1.sources.domain import CommandError
 
 from .commands import approve_claim_revision, prepare_claim_revision, select_synthetic_policy
+from .delivery_commands import (
+    cancel_before_dispatch, reconcile_delivery, request_delivery,
+    retry_idempotent_delivery,
+)
 from .forms import (
-    ApprovalForm, ClaimPrepareForm, PolicySelectionForm, ServiceAcceptForm,
-    ServiceRevisionForm,
+    ApprovalForm, ClaimPrepareForm, DeliveryCancelForm, DeliveryReconcileForm,
+    DeliveryRequestForm, DeliveryRetryForm, PolicySelectionForm,
+    ServiceAcceptForm, ServiceRevisionForm,
 )
 from .models import SyntheticPolicySelection
 from .queries import (
@@ -21,6 +26,8 @@ from .queries import (
     claim_detail,
     claim_for_encounter,
     claim_revision_for_claim,
+    delivery_detail,
+    delivery_for_revision,
 )
 
 
@@ -176,10 +183,39 @@ def claim_review(request, organization_id, claim_id):
     except (AuthorizationError, CommandError) as exc:
         raise Http404 from exc
     current = claim.current_revision
-    form = ApprovalForm(request.POST or None, initial={
+    approval_post = request.POST if request.method == "POST" and request.POST.get("action") != "request_delivery" else None
+    form = ApprovalForm(approval_post, initial={
         "claim_revision_id": current.id, "expected_envelope_digest": current.envelope_digest,
     })
-    if request.method == "POST" and form.is_valid():
+    delivery_form = DeliveryRequestForm(
+        request.POST if request.method == "POST" and request.POST.get("action") == "request_delivery" else None,
+        prefix="delivery",
+        initial={
+            "claim_revision_id": current.id,
+            "expected_envelope_digest": current.envelope_digest,
+        },
+    )
+    if request.method == "POST" and request.POST.get("action") == "request_delivery" and delivery_form.is_valid():
+        try:
+            submitted_revision = claim_revision_for_claim(
+                actor=request.user, organization_id=organization_id, claim_id=claim.id,
+                claim_revision_id=delivery_form.cleaned_data["claim_revision_id"],
+            )
+            result = request_delivery(
+                actor=request.user, organization_id=organization_id,
+                request_id=delivery_form.cleaned_data["request_uuid"],
+                claim_revision_id=submitted_revision.id,
+                expected_envelope_digest=delivery_form.cleaned_data["expected_envelope_digest"],
+            )
+        except (CommandError, AuthorizationError) as exc:
+            delivery_form.add_error(None, exc.reason_code)
+        else:
+            messages.success(request, result.reason_code)
+            return redirect(
+                "delivery_detail", organization_id=organization_id,
+                intent_id=result.intent_id,
+            )
+    elif request.method == "POST" and form.is_valid():
         try:
             submitted_revision = claim_revision_for_claim(
                 actor=request.user,
@@ -201,10 +237,81 @@ def claim_review(request, organization_id, claim_id):
     actionability = claim_actionability(
         actor=request.user, organization_id=organization_id, claim_revision_id=current.id
     )
+    delivery = delivery_for_revision(
+        actor=request.user, organization_id=organization_id,
+        claim_revision_id=current.id,
+    )
     return render(request, "claims/claim_detail.html", {
         "organization_id": organization_id, "claim": claim, "revision": current,
         "lines": current.lines.order_by("ordinal"), "form": form,
-        "actionability": actionability,
+        "actionability": actionability, "delivery_form": delivery_form,
+        "delivery": delivery,
+    })
+
+
+@login_required
+def delivery_review(request, organization_id, intent_id):
+    if request.method not in {"GET", "POST"}:
+        return HttpResponseNotAllowed(["GET", "POST"])
+    try:
+        detail = delivery_detail(
+            actor=request.user, organization_id=organization_id, intent_id=intent_id
+        )
+    except (AuthorizationError, CommandError) as exc:
+        raise Http404 from exc
+    latest = next((item for item in reversed(detail.attempts) if item.possible_dispatch), None)
+    cancel_form = DeliveryCancelForm(initial={"intent_id": detail.intent.id}, prefix="cancel")
+    retry_form = DeliveryRetryForm(initial={
+        "intent_id": detail.intent.id,
+        "expected_attempt_id": latest.id if latest else None,
+    }, prefix="retry")
+    reconcile_form = DeliveryReconcileForm(
+        initial={"intent_id": detail.intent.id}, prefix="reconcile"
+    )
+    if request.method == "POST":
+        action = request.POST.get("action")
+        active_form = None
+        result = None
+        try:
+            if action == "cancel":
+                active_form = cancel_form = DeliveryCancelForm(request.POST, prefix="cancel")
+                if cancel_form.is_valid():
+                    result = cancel_before_dispatch(
+                        actor=request.user, organization_id=organization_id,
+                        request_id=cancel_form.cleaned_data["request_uuid"],
+                        intent_id=cancel_form.cleaned_data["intent_id"],
+                    )
+            elif action == "retry":
+                active_form = retry_form = DeliveryRetryForm(request.POST, prefix="retry")
+                if retry_form.is_valid():
+                    result = retry_idempotent_delivery(
+                        actor=request.user, organization_id=organization_id,
+                        request_id=retry_form.cleaned_data["request_uuid"],
+                        intent_id=retry_form.cleaned_data["intent_id"],
+                        expected_attempt_id=retry_form.cleaned_data["expected_attempt_id"],
+                    )
+            elif action == "reconcile":
+                active_form = reconcile_form = DeliveryReconcileForm(
+                    request.POST, prefix="reconcile"
+                )
+                if reconcile_form.is_valid():
+                    result = reconcile_delivery(
+                        actor=request.user, organization_id=organization_id,
+                        intent_id=reconcile_form.cleaned_data["intent_id"],
+                    )
+            else:
+                return HttpResponseNotAllowed(["GET", "POST"])
+        except (CommandError, AuthorizationError) as exc:
+            active_form.add_error(None, exc.reason_code)
+        if result is not None:
+            messages.success(request, result.reason_code)
+            return redirect(
+                "delivery_detail", organization_id=organization_id, intent_id=intent_id
+            )
+    return render(request, "claims/delivery_detail.html", {
+        "organization_id": organization_id, "detail": detail,
+        "cancel_form": cancel_form, "retry_form": retry_form,
+        "reconcile_form": reconcile_form,
     })
 
 

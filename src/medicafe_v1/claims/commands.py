@@ -151,6 +151,7 @@ def select_synthetic_policy(*, actor, organization_id, request_id, expected_vers
             command_kind="select_synthetic_policy", target_key=str(organization_id),
             expected_predecessor_id=None, intent_digest=digest,
             result_policy_version=version, result_policy_generation=selected_generation,
+            accepted_by=actor,
         )
     return ClaimCommandResult(
         reason_code, policy_version=version, policy_generation=selected_generation,
@@ -279,6 +280,7 @@ def prepare_claim_revision(*, actor, organization_id, request_id, encounter_id,
             intent_digest=digest, result_claim=claim, result_revision=revision,
             result_policy_version=policy.version,
             result_policy_generation=policy.activation_generation,
+            accepted_by=actor,
         )
     return ClaimCommandResult(
         "claim_revision_prepared", claim.id, revision.id,
@@ -351,6 +353,7 @@ def approve_claim_revision(*, actor, organization_id, request_id, claim_revision
             result_claim=claim, result_revision=scoped_revision, result_approval=approval,
             result_policy_version=scoped_revision.policy_version,
             result_policy_generation=scoped_revision.policy_generation,
+            accepted_by=actor,
         )
     return ClaimCommandResult(
         reason_code, claim.id, scoped_revision.id, approval.id,

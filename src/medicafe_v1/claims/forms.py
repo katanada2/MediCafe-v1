@@ -68,3 +68,21 @@ class PolicySelectionForm(RequestForm):
         ("synthetic-v1", "synthetic-v1: SYN-A and SYN-B"),
         ("synthetic-v2", "synthetic-v2: SYN-A only"),
     ])
+
+
+class DeliveryRequestForm(RequestForm):
+    claim_revision_id = forms.UUIDField(widget=forms.HiddenInput)
+    expected_envelope_digest = forms.CharField(widget=forms.HiddenInput, max_length=64)
+
+
+class DeliveryCancelForm(RequestForm):
+    intent_id = forms.UUIDField(widget=forms.HiddenInput)
+
+
+class DeliveryRetryForm(RequestForm):
+    intent_id = forms.UUIDField(widget=forms.HiddenInput)
+    expected_attempt_id = forms.UUIDField(widget=forms.HiddenInput)
+
+
+class DeliveryReconcileForm(forms.Form):
+    intent_id = forms.UUIDField(widget=forms.HiddenInput)

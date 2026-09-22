@@ -6,7 +6,10 @@ from medicafe_v1.access.services import require_active_membership
 from medicafe_v1.records.queries import service_dependencies
 from medicafe_v1.sources.domain import CommandError
 
-from .models import Claim, ClaimApproval, ClaimRevision, SyntheticPolicySelection
+from .models import (
+    AttemptOutcome, Claim, ClaimApproval, ClaimRevision, ClaimsCommandReceipt,
+    DeliveryIntent, DeliveryWork, ReceiverObservation, SyntheticPolicySelection,
+)
 from .policies import POLICIES
 
 
@@ -27,6 +30,108 @@ class ClaimActionability:
     claim_id: object
     revision_id: object
     approval_id: object | None
+
+
+@dataclass(frozen=True)
+class DeliveryDetailView:
+    intent: object
+    work: object
+    attempts: tuple
+    observations: tuple
+    current_state: str
+    blocking_reasons: tuple[str, ...]
+    permitted_actions: tuple[str, ...]
+
+
+def delivery_effect_state(intent):
+    observations = intent.observations.all()
+    if observations.filter(observed_state=ReceiverObservation.STATE_CONFLICT).exists():
+        return "receiver_conflict"
+    if observations.filter(
+        observed_state=ReceiverObservation.STATE_ACCEPTED, binding_valid=True
+    ).exists():
+        return "receiver_accepted"
+    attempts = intent.attempts.all()
+    rejected_ids = ReceiverObservation.objects.filter(
+        intent=intent, observed_state=ReceiverObservation.STATE_REJECTED,
+        binding_valid=True, no_acceptance_guaranteed=True,
+    ).values("reported_attempt_id")
+    if attempts.filter(possible_dispatch=True).exclude(id__in=rejected_ids).exists():
+        return "uncertain"
+    if ClaimsCommandReceipt.objects.filter(
+        command_kind="cancel_before_dispatch", result_delivery_intent=intent,
+        result_code__in=("delivery_cancelled", "delivery_already_cancelled"),
+    ).exists():
+        return "cancelled"
+    if attempts.filter(possible_dispatch=True).exists():
+        return "receiver_rejected"
+    work = intent.work
+    if work.state == DeliveryWork.STATE_BLOCKED:
+        return "blocked"
+    if work.state == DeliveryWork.STATE_LEASED:
+        return "leased"
+    if work.state == DeliveryWork.STATE_PENDING:
+        return "pending"
+    return "definitely_unsent"
+
+
+def delivery_detail(*, actor, organization_id, intent_id):
+    require_active_membership(actor=actor, organization_id=organization_id)
+    try:
+        intent = DeliveryIntent.objects.select_related(
+            "claim", "claim_revision", "claim_approval", "authorized_by", "work"
+        ).prefetch_related(
+            "attempts__outcome", "attempts__effective_authorizer", "observations"
+        ).get(organization_id=organization_id, id=intent_id)
+    except (DeliveryIntent.DoesNotExist, ValueError) as exc:
+        raise CommandError("delivery_intent_not_found") from exc
+    attempts = tuple(intent.attempts.order_by("ordinal"))
+    observations = tuple(intent.observations.order_by("recorded_at", "id"))
+    state = delivery_effect_state(intent)
+    actionability = claim_actionability(
+        actor=actor, organization_id=organization_id,
+        claim_revision_id=intent.claim_revision_id,
+    )
+    reasons = list(actionability.blockers)
+    if state == "receiver_conflict":
+        reasons.insert(0, "receiver_conflict")
+    elif state == "uncertain":
+        reasons.insert(0, "dispatch_outcome_unknown")
+    elif state == "blocked" and intent.work.blocking_reason:
+        reasons.insert(0, intent.work.blocking_reason)
+    actions = []
+    if not any(attempt.possible_dispatch for attempt in attempts) and state not in {
+        "cancelled", "receiver_accepted", "receiver_conflict"
+    }:
+        actions.append("cancel")
+    if any(attempt.possible_dispatch for attempt in attempts):
+        actions.append("reconcile")
+    latest = next((attempt for attempt in reversed(attempts) if attempt.possible_dispatch), None)
+    if (
+        latest and intent.receiver_version == "v1" and state == "uncertain"
+        and hasattr(latest, "outcome") and latest.outcome.kind == AttemptOutcome.UNKNOWN
+        and not actionability.blockers
+    ):
+        actions.append("retry")
+    return DeliveryDetailView(
+        intent, intent.work, attempts, observations, state,
+        tuple(dict.fromkeys(reasons)), tuple(actions),
+    )
+
+
+def delivery_worklist(*, actor, organization_id):
+    require_active_membership(actor=actor, organization_id=organization_id)
+    intents = DeliveryIntent.objects.filter(organization_id=organization_id).select_related(
+        "claim", "claim_revision", "work"
+    ).prefetch_related("attempts", "observations").order_by("-authorized_at", "id")
+    return tuple((intent, delivery_effect_state(intent)) for intent in intents)
+
+
+def delivery_for_revision(*, actor, organization_id, claim_revision_id):
+    require_active_membership(actor=actor, organization_id=organization_id)
+    return DeliveryIntent.objects.filter(
+        organization_id=organization_id, claim_revision_id=claim_revision_id
+    ).first()
 
 
 def _money(value):
