@@ -8,8 +8,8 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
-- The [detailed F2 card](F2_SERVICE_CLAIM_CARD.md) defines the next service/claim milestone. Astra's focused review is complete. Merge of PR #3 admits F2 runtime; main containing this handoff is the confirmed entry gate. Before merge, its review branch is not authorization. No F2 runtime has been implemented by this planning change.
-- F3 and F4 remain gated. No real data, external effect, migration or live integration is authorized.
+- The [detailed F2 card](F2_SERVICE_CLAIM_CARD.md) admitted the bounded service/claim runtime through merged PR #3. PR #6 implements that card and is awaiting Astra's acceptance; its synthetic CI evidence does not itself transfer milestone authority.
+- F3 and F4 planning contracts are merged, but both runtime gates remain closed. No real data, external effect, migration from V0 or live integration is authorized.
 
 ## F1 acceptance evidence
 
@@ -29,6 +29,18 @@ One owner implements exercised records/claims and shared wiring. A disjoint fixt
 
 Return a draft PR and evidence packet to Astra. Do not merge or begin F3. Mechanical choices inside the card are delegated; changes to identity, authority, policy meaning, owner boundaries or external-effect rules require architectural review.
 
+## F2 implementation evidence
+
+Implementation branch `codex/f2-service-claims`, [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6), was delivered through task `01a09b4c-b9cb-7f83-bc7b-2dbd2c3b717d`. Verified implementation head `5360be892c0d6176345360815ceb07137df2e6b1` is rebased on merged F3/F4 planning baseline `8973724df9e36ae3f27538b9e51316152e518dfd`.
+
+[PostgreSQL run 35695464429](https://github.com/katanada2/MediCafe-v1/actions/runs/35695464429) passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift detection and all 63 F1+F2 tests in 49.817 seconds. GitGuardian passed on the same head.
+
+The evidence covers the ten F2 card groups: append-only service acceptance/correction/exclusion/reinstatement with evidence provenance; canonical retries and a shared request namespace; deterministic ordered claim snapshots and bounded arithmetic; immutable envelopes and restart durability; generation-bound policy compare-and-set; historical approval with fixed-order current actionability; PostgreSQL relationship, history, head and receipt constraints; tenant, inactive-membership and CSRF denial; serialized competing corrections/preparations/approvals/policy changes including a forced lock-order schedule; and authenticated CSV/DOCX operator flows, redaction, invalid-selection atomicity, maximum-size cases and setup paths.
+
+The final edge matrix explicitly exercises policy no-op replay after later activations, same-version policy return without approval revival, equal-valued selected-service correction invalidation, corrected reuse of a rejected request UUID, wrong or unresolved same-organization evidence, and named wrong-aggregate/patient/encounter database constraints. Failed intermediate run 35695248247 had 62 of 63 tests pass and exposed a fixture that collided with a uniqueness constraint before reaching the intended service/revision composite constraint; the fixture was corrected and the named target constraint passed in run 35695464429.
+
+This is public-synthetic repository and PostgreSQL integration evidence. It is not a manual browser walkthrough, deployed qualification, real payer interoperability, production readiness, compliance evidence or authority transfer from V0. No external dispatch exists, and F3/F4 runtime remains out of scope.
+
 ## Evidence packet and escalation
 
 Report branch, exact head, PR, changed responsibility, setup commands, resolved versions, executed tests/results, failed or unrun checks, contract coverage and open gaps. Distinguish source review from execution and local evidence from deployed qualification. Keep private operational links and source data out of this file.
@@ -45,6 +57,9 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
+- [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): verified at implementation head `5360be892c0d6176345360815ceb07137df2e6b1`; awaiting Astra review, not merged.
+- [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
+- [F3 planning PR #4](https://github.com/katanada2/MediCafe-v1/pull/4): verified merged at `a5a74e2f3d4e870aaa87afd6dc20bc0233ec69c2`; planning only, runtime gate closed.
 - [F2 contract PR #3](https://github.com/katanada2/MediCafe-v1/pull/3): F2 admission decision: merging this record accepts the card and opens implementation. On main containing this record, F2 is admitted.
 - [F1 implementation PR #2](https://github.com/katanada2/MediCafe-v1/pull/2): verified merged 2026-09-22, accepted evidence above.
 - [Charter PR #1](https://github.com/katanada2/MediCafe-v1/pull/1): verified merged; established the initial F1 entry gate.
