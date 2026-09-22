@@ -83,6 +83,32 @@ class ProcessDeliveryTests(F3TransactionTestCase):
                 self.assertEqual(evidence.delivery_key, str(requested.intent_id))
                 self.assertEqual(evidence.received_bytes, bytes(revision.envelope_bytes))
 
+    def test_synthetic_payload_sentinel_is_absent_from_process_output(self):
+        sentinel = f"SENTINEL-{uuid.uuid4().hex[:12]}"
+        self.receiver.start()
+        _, revision, _ = self.approved_claim(note=sentinel, service_code=sentinel)
+        requested = request_delivery(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+
+        worker = self.receiver.run_worker()
+
+        self.assertEqual(worker.returncode, 0, worker.stderr)
+        self.assertNotIn(sentinel, worker.stdout)
+        self.assertNotIn(sentinel, worker.stderr)
+        self.assertIn(sentinel.encode("utf-8"), bytes(revision.envelope_bytes))
+        with psycopg.connect(**postgres_kwargs()) as conn, conn.cursor() as cursor:
+            cursor.execute(sql.SQL("""
+                SELECT received_bytes FROM {}.accepted_receipt
+                WHERE organization_id=%s AND delivery_key=%s
+            """).format(sql.Identifier(self.receiver.schema)), (
+                self.alpha.id, requested.intent_id,
+            ))
+            stored_bytes = bytes(cursor.fetchone()[0])
+        self.assertIn(sentinel.encode("utf-8"), stored_bytes)
+
 
 class ReceiverOutageTests(F3TransactionTestCase):
     def setUp(self):

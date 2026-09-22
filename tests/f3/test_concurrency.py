@@ -9,14 +9,16 @@ from django.db import close_old_connections
 from django.utils import timezone
 
 from medicafe_v1.claims.delivery_adapter import ReceiverEvidence
+from medicafe_v1.claims.commands import approve_claim_revision, prepare_claim_revision
 from medicafe_v1.claims.delivery_commands import (
     reconcile_delivery, request_delivery, retry_idempotent_delivery,
 )
 from medicafe_v1.claims.delivery_worker import _finish_with_token, run_delivery_worker_once
 from medicafe_v1.claims.models import (
     AttemptOutcome, ClaimsCommandReceipt, DeliveryAttempt, DeliveryWork,
-    ReceiverObservation,
+    ClaimRevision, DeliveryIntent, ReceiverObservation,
 )
+from medicafe_v1.sources.domain import CommandError
 
 from .base import F3TransactionTestCase
 from .test_worker import AcceptedAdapter
@@ -272,3 +274,51 @@ class WorkerFenceRaceTests(F3TransactionTestCase):
         self.assertEqual(observations.count(), 2)
         self.assertEqual(observations.filter(binding_valid=True).count(), 1)
         self.assertEqual(observations.filter(observed_state="conflict").count(), 1)
+
+
+class DeliveryRequestRaceTests(F3TransactionTestCase):
+    def test_competing_revision_requests_create_only_current_slot_intent(self):
+        claim, first, _ = self.approved_claim()
+        prepared = prepare_claim_revision(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), encounter_id=first.encounter_id,
+            expected_claim_revision_id=first.id,
+            selected_service_revision_ids=list(
+                first.lines.order_by("ordinal").values_list("service_revision_id", flat=True)
+            ),
+            route_id=first.route_id, route_version="v2",
+            reason="Synthetic concurrent successor revision",
+        )
+        successor = ClaimRevision.objects.get(id=prepared.revision_id)
+        approve_claim_revision(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), claim_revision_id=successor.id,
+            expected_envelope_digest=successor.envelope_digest,
+        )
+        barrier = threading.Barrier(2)
+
+        def request(revision):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=5)
+                try:
+                    result = request_delivery(
+                        actor=self.alpha_user, organization_id=self.alpha.id,
+                        request_id=uuid.uuid4(), claim_revision_id=revision.id,
+                        expected_envelope_digest=revision.envelope_digest,
+                    )
+                    return "created", result.intent_id
+                except CommandError as exc:
+                    return exc.reason_code, None
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(request, (first, successor)))
+
+        self.assertEqual(sorted(reason for reason, _ in results), ["created", "superseded_revision"])
+        self.assertEqual(DeliveryIntent.objects.filter(claim=claim).count(), 1)
+        self.assertEqual(
+            DeliveryIntent.objects.get(claim=claim).claim_revision_id,
+            successor.id,
+        )

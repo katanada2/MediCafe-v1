@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -131,6 +132,22 @@ class WorkerPreflightTests(F3TransactionTestCase):
         attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
         self.assertFalse(attempt.possible_dispatch)
         self.assertEqual(attempt.outcome.reason, "receiver_configuration_missing")
+        self.assertEqual(adapter.sent, [])
+
+    def test_corrupt_envelope_read_fails_closed_before_send(self):
+        _, requested = self.request()
+        adapter = AcceptedAdapter()
+
+        with patch("medicafe_v1.claims.delivery_worker.hashlib.sha256") as digest:
+            digest.return_value.hexdigest.return_value = "0" * 64
+            result = run_delivery_worker_once(
+                worker_id="corrupt-read", lease_seconds=2, adapter=adapter,
+            )
+
+        self.assertEqual(result.reason_code, "delivery_blocked")
+        attempt = DeliveryAttempt.objects.get(intent_id=requested.intent_id)
+        self.assertFalse(attempt.possible_dispatch)
+        self.assertEqual(attempt.outcome.reason, "envelope_unavailable")
         self.assertEqual(adapter.sent, [])
 
     def test_expired_marker_recovers_unknown_without_resend(self):
