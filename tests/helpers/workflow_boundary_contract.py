@@ -74,3 +74,33 @@ def assert_parse_boundary(testcase: SimpleTestCase, *, delivery, parser_version:
     testcase.assertTrue(all(observation.parse_result_id == result.id for observation in observations))
     testcase.assertTrue(all(observation.organization_id == delivery.organization_id for observation in observations))
     return result
+
+
+def assert_outcome_boundary(testcase: SimpleTestCase, *, candidate, expected_event,
+                            expected_entries: int):
+    """Assert retained source, interpretation, attribution and posting agree."""
+    from medicafe_v1.outcomes.models import (
+        AcceptedEventEvidence, InboundAttempt, PostingEntry,
+    )
+
+    candidate.refresh_from_db()
+    testcase.assertEqual(candidate.organization_id, candidate.delivery.organization_id)
+    testcase.assertEqual(candidate.semantic_digest, expected_event.semantic_digest)
+    testcase.assertEqual(candidate.intent_id, expected_event.intent_id)
+    testcase.assertEqual(candidate.claim_revision_id, expected_event.claim_revision_id)
+    testcase.assertEqual(candidate.receiver_receipt_id, expected_event.receiver_receipt_id)
+    testcase.assertTrue(AcceptedEventEvidence.objects.filter(
+        organization_id=candidate.organization_id,
+        event=expected_event, candidate=candidate,
+    ).exists())
+    testcase.assertTrue(InboundAttempt.objects.filter(
+        organization_id=candidate.organization_id, delivery=candidate.delivery,
+        interpreter_version=candidate.interpreter_version, succeeded=True,
+    ).exists())
+    entries = PostingEntry.objects.filter(
+        organization_id=candidate.organization_id, event=expected_event
+    )
+    testcase.assertEqual(entries.count(), expected_entries)
+    testcase.assertTrue(all(entry.batch.event_id == expected_event.id for entry in entries))
+    testcase.assertTrue(all(entry.account.claim_revision_id == candidate.claim_revision_id for entry in entries))
+    return expected_event

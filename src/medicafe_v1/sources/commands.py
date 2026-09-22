@@ -14,10 +14,24 @@ from .parsers import PARSER_VERSION, parse
 
 logger = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_OUTCOME_UPLOAD_BYTES = 1024 * 1024
+OUTCOME_NAMESPACES = {"synthetic-lifecycle", "synthetic-remittance"}
 ALLOWED_MEDIA_TYPES = {
     "text/csv",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/json",
 }
+
+
+def delivery_upload_limit(*, source_namespace, media_type):
+    namespace = source_namespace.strip()
+    if media_type == "application/json":
+        if namespace not in OUTCOME_NAMESPACES:
+            raise CommandError("source_namespace_unsupported")
+        return MAX_OUTCOME_UPLOAD_BYTES
+    if namespace in OUTCOME_NAMESPACES:
+        raise CommandError("media_type_unsupported")
+    return MAX_UPLOAD_BYTES
 
 
 def admit_delivery(*, actor, organization_id, source_namespace, source_key, content, media_type,
@@ -29,10 +43,12 @@ def admit_delivery(*, actor, organization_id, source_namespace, source_key, cont
         raise CommandError("source_identity_required")
     if not content:
         raise CommandError("upload_empty")
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise CommandError("upload_too_large")
     if media_type not in ALLOWED_MEDIA_TYPES:
         raise CommandError("media_type_unsupported")
+    if len(content) > delivery_upload_limit(
+        source_namespace=namespace, media_type=media_type
+    ):
+        raise CommandError("upload_too_large")
     store = artifact_store or LocalArtifactStore()
     digest = hashlib.sha256(content).hexdigest()
     existing = Delivery.objects.filter(

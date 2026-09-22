@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "medicafe_v1.sources",
     "medicafe_v1.records",
     "medicafe_v1.claims",
+    "medicafe_v1.outcomes",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

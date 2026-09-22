@@ -36,10 +36,11 @@ Cross-owner calls return frozen values, never mutable ORM rows.
 
 Historical attribution verifies the complete declared tuple and approved bytes.
 For acceptance it runs inside a caller-owned atomic READ COMMITTED transaction,
-locks `Encounter`, `Claim`, `DeliveryIntent`, then the existing receiver receipt
-identity anchor, and scans target and namespace conflicts in later statements.
-It never creates an anchor for an unmatched target. Read-only attribution uses
-the caller snapshot without opening another transaction.
+locks and revalidates the membership/organization prelude, then locks
+`Encounter`, `Claim`, `DeliveryIntent`, and the existing receiver receipt
+identity anchor before scanning target and namespace conflicts in later
+statements. It never creates an anchor for an unmatched target. Read-only
+attribution uses the caller snapshot without opening another transaction.
 
 ## Durable relationship design
 
@@ -62,7 +63,7 @@ the caller snapshot without opening another transaction.
 | `InboundConflict` | immutable pair of candidate evidence identities for one organization/sender/kind/event or lifecycle stream/sequence conflict |
 | `AcceptedEvent` | unique organization/sender/kind/event and semantic digest; exact accepted candidate, F3 attribution observation/fingerprint, intent/revision/receipt and actor/time |
 | `AcceptedEventEvidence` | unique event/candidate link so equal semantic evidence from another delivery never posts twice |
-| `FinancialAccount` | unique organization/exact delivered ClaimRevision/USD with immutable original charge and a monotonic posting generation used only as a mutex |
+| `FinancialAccount` | unique organization/exact delivered ClaimRevision/USD with immutable original charge/currency and a monotonic posting generation as its only permitted mutation, used only as a mutex |
 | `ChargeBasis` | unique account/exact ClaimLine with ordinal and immutable original line charge |
 | `PostingBatch` | one-to-one accepted remittance event/account and complete-or-absent acceptance |
 | `PostingEntry` | unique event/line/kind; typed nonnegative payment or contractual credit bound to the same batch/account/revision/line/currency |
