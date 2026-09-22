@@ -45,7 +45,7 @@ This is public-synthetic repository and PostgreSQL integration evidence. It is n
 
 ## F3 admission and delivery assignment
 
-Astra accepts the reviewed [F3 delivery contract](F3_DELIVERY_CARD.md) against the merged F2 implementation. Its exact-envelope, approval, service-dependency and policy-generation interfaces remain the authority at the future dispatch boundary. Merge of this record admits the complete public-synthetic F3 milestone; no F4 runtime is admitted.
+Astra accepts the reviewed [F3 delivery contract](F3_DELIVERY_CARD.md) against the merged F2 implementation. Its exact-envelope, approval, service-dependency and policy-generation interfaces remain the authority at the future dispatch boundary. Merge of this record admits implementation of the complete public-synthetic F3 scope. It does not establish F3 completion or acceptance; no F4 runtime is admitted.
 
 F2 acceptance used implementation head `de1d16681c08781c4de705c5ecc93227f41822f3`, final documentation head `19dff27f5a01f5bf06cc375bdf46ef8b9d1c7b7d`, the 68-test implementation run above, and green [final-head run 35697574634](https://github.com/katanada2/MediCafe-v1/actions/runs/35697574634). All four automated-review threads were resolved after focused source and PostgreSQL verification. The final merge used normal repository protections.
 

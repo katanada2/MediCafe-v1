@@ -1,6 +1,6 @@
 # F2: accepted services and approved claim revisions
 
-Status: reviewed detailed synthetic contract, accepted and admitted for implementation by merge of PR #3. F1 evidence is accepted. On main containing this card, F2 may proceed; an unmerged review branch alone does not grant entry. F3 remains closed. Decision owner: Astra; delivery owner: Sol.
+Status: F2 implementation accepted by Astra and merged through PR #6. F3 implementation is admitted only by merge of the explicit [admission record](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment); admission does not establish F3 completion or acceptance. F4 runtime remains closed. Decision owner: Astra; delivery owner: Sol.
 
 ## Outcome and boundary
 

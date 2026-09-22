@@ -1,12 +1,12 @@
 # MediCafe V1
 
-The accepted F1 runtime foundation covers synthetic intake and identity review. The admitted F2 implementation is under review for explicit accepted services and immutable synthetic claim revisions. See the [F1 setup](docs/roadmap/F1_SETUP.md) and [F2 walkthrough](docs/roadmap/F2_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
+The accepted F1 and F2 runtime foundations cover synthetic intake, identity review, explicit accepted services and immutable approved claim revisions. F3 durable delivery implementation is next, gated by merge of the explicit [admission record](docs/roadmap/DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment). See the [F1 setup](docs/roadmap/F1_SETUP.md) and [F2 walkthrough](docs/roadmap/F2_SETUP.md) for PostgreSQL 17 setup, locked versions, verification commands and the public-data boundary.
 
 MediCafe V1 is the public planning home for a cloud-authoritative medical billing application. It is intended to become a clean, open-source application core under the `katanada2` owner while the private MediCafe repository remains the historical proving ground for workflows and operational evidence.
 
 ## Current status
 
-This repository contains the accepted architecture, accepted synthetic F1 foundation, and a draft synthetic F2 implementation under review. It contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
+This repository contains the accepted architecture and accepted synthetic F1 and F2 implementations. F3 implementation admission does not establish F3 completion or acceptance; F4 runtime remains gated. It contains no deployment configuration or production readiness claim. Public examples and fixtures must remain synthetic and free of protected health information, credentials, clinic configuration, and private operational data.
 
 The V1 plan is the source for the proposed product shape, authority model, repository boundary, roadmap, and multi-agent working model:
 
