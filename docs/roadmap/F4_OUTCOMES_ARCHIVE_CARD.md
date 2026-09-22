@@ -1,6 +1,6 @@
 # F4: inbound outcomes and delayed archive
 
-Status: reviewed planning contract; merging this document does not admit runtime implementation. F4 implementation remains gated on Astra acceptance of F3 and review/merge of this card with an explicit admission record. This planning contract authorizes no runtime change. Owner: Astra; intended delivery owner: Sol.
+Status: reviewed planning contract. F3 is accepted; F4 runtime is admitted only from main containing the merged [explicit admission record](F4_IMPLEMENTATION_ADMISSION.md). This card alone does not authorize implementation. Owner: Astra; delivery owner: Sol.
 
 ## Outcome and boundary
 
@@ -46,7 +46,7 @@ Current lifecycle shows the highest contiguous accepted sequence and any unresol
 
 Use outcomes-owned immutable accepted-command receipts with F2 canonical encoding and organization/request UUID uniqueness across command kinds. Bind complete command kind, target candidate and intent, and accepted semantic digest. Same accepted input replays original IDs; a changed candidate/target/input conflicts even if amounts happen to match. Rejected requests have no accepted receipt or partial ledger mutation and may reuse their request UUID. Active membership is required before replay. A different request confirming the same semantic accepted event returns that existing event and its posting IDs; it must not attribute a second financial posting to the new click.
 
-At acceptance, verify source bytes/current candidate attribution and lock in this order: encounter through records query, Claim through claims owner query, then outcomes event/financial rows. F3 dispatch and F2 preparation already lock encounter before Claim; no reverse owner locks. Recheck all mutable evidence/preconditions under locks. Cross-owner reads use narrow queries and no outcomes write updates a Claim approval or F3 attempt. Use uniqueness constraints/savepoints to classify first-row and identical-request races without broken transactions.
+At acceptance, verify source bytes/current candidate attribution and follow the refined lock order in the [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md): membership/organization prelude, records Encounter, claims Claim, DeliveryIntent, receiver-receipt identity anchor, then outcomes event/financial rows. F3 dispatch and F2 preparation already lock encounter before Claim; no reverse owner locks. Recheck all mutable evidence/preconditions under locks. Cross-owner reads use narrow queries and no outcomes write updates a Claim approval or F3 attempt. Use uniqueness constraints/savepoints to classify first-row and identical-request races without broken transactions.
 
 Accepted lifecycle event, evidence link and request receipt commit atomically. Remittance acceptance creates its accepted event, complete PostingBatch, all lines and receipt in one transaction. Any invalid/overallocated line rejects the entire proposed posting; no partial success batch. Keep validation blockers distinct from committed accepted facts.
 

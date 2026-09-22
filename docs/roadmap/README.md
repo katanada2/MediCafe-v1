@@ -26,3 +26,5 @@ Work is coordinated through bounded assignments: Astra owns architecture and con
 - [F3 durable delivery and uncertainty contract](F3_DELIVERY_CARD.md) defines the reviewed effect boundary and independent receiver evidence. F3 runtime is admitted only when its explicit admission record in the handoff is merged.
 
 - [F4 inbound outcomes and delayed archive contract](F4_OUTCOMES_ARCHIVE_CARD.md) defines synthetic attribution, conserved postings and independent archive readback. F4 runtime remains gated on accepted F3 evidence and an explicit reviewed admission record.
+
+- [F4 implementation admission](F4_IMPLEMENTATION_ADMISSION.md) records accepted F3 evidence, historical attribution, conflict serialization and the bounded Sol delivery assignment. Main containing the merged record admits F4 runtime.
