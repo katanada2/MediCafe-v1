@@ -1,7 +1,7 @@
 # F3 implementation and acceptance matrix
 
-Status: Astra accepted the runtime implementation and evidence at `8b42173`,
-subject to this final documentation and normal PR review/merge. PR #8 is not
+Status: Astra accepted the runtime implementation and evidence at `8b42173`.
+At that evidence checkpoint, PR #8 was ready for normal review and not yet
 merged. Executed evidence below is tied to an exact commit and CI run; source
 inspection is not test execution.
 
@@ -93,6 +93,7 @@ does not turn planned evidence into completion evidence.
   includes all twelve mapped scenarios, all ten relationship-class negatives,
   both real worker-kill windows, and the corrected payload sentinel case.
 
-PR #8 remains unmerged and the final documentation head still requires its own
-normal checks. This matrix does not claim deployed qualification, live
-interoperability, production readiness, or F4 authorization.
+At the `8b42173` evidence checkpoint, PR #8 remained unmerged and the final
+documentation head still required its own normal checks. This matrix does not
+claim deployed qualification, live interoperability, production readiness, or
+F4 authorization. Follow the PR link in the handoff for current repository state.

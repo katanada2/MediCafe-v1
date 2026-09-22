@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 has accepted synthetic intake/identity (F1) and service/claim approval (F2) foundations. Astra has accepted the durable synthetic delivery (F3) runtime implementation and evidence in PR #8, subject to final documentation and normal review/merge; PR #8 is not merged and later milestones remain gated. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has accepted synthetic intake/identity (F1), service/claim approval (F2), and durable synthetic delivery with explicit uncertainty (F3). Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership and evidence requirements. F2 is accepted through merged PR #6. F3 was admitted by merged PR #7 but is not accepted or merged; F4 runtime remains gated.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 runtime remains gated on a separate explicit reviewed admission record.
 
 ## Milestones
 

@@ -1,10 +1,10 @@
 # F3 durable synthetic delivery walkthrough
 
-This walkthrough extends the accepted public-synthetic F1 and F2 foundations.
-Astra has accepted the F3 runtime implementation and evidence in ready-for-review
-PR #8, subject to final documentation and normal review/merge; the PR is not
-merged. Nothing here authorizes real patient data, live payer endpoints, private
-V0 material, deployment, production use, or F4 runtime.
+This walkthrough extends the accepted public-synthetic F1 and F2 foundations
+through the accepted F3 runtime contract. Exact evidence and PR provenance are
+recorded in the [delivery handoff](DELIVERY_HANDOFF.md). Nothing here authorizes
+real patient data, live payer endpoints, private V0 material, deployment,
+production use, or F4 runtime.
 
 ## Prerequisites and database setup
 
