@@ -497,16 +497,40 @@ def reevaluate_candidate(*, actor, organization_id, candidate_id, artifact_store
         blockers.append(exc.reason_code)
     if _candidate_conflicts(candidate):
         blockers.append("conflicting_identity_or_content")
-    if not blockers:
-        try:
-            _historical_attribution(actor=actor, candidate=candidate, for_acceptance=False)
-        except CommandError as exc:
-            blockers.append(exc.reason_code)
+    attribution = None
+    try:
+        attribution = _historical_attribution(
+            actor=actor, candidate=candidate, for_acceptance=False
+        )
+    except CommandError as exc:
+        blockers.append(exc.reason_code)
+    if candidate.kind == InboundCandidate.KIND_LIFECYCLE:
+        if candidate.lifecycle_sequence > 1 and not AcceptedEvent.objects.filter(
+            organization_id=organization_id, sender_id=candidate.sender_id,
+            kind=InboundCandidate.KIND_LIFECYCLE, intent_id=candidate.intent_id,
+            lifecycle_sequence=candidate.lifecycle_sequence - 1,
+            event_id=candidate.predecessor_event_id,
+        ).exists():
+            blockers.append("pending_sequence_gap")
+    elif attribution is not None:
+        attributed = {line.ordinal: line for line in attribution.lines}
+        for line in candidate.lines.all():
+            target = attributed[line.line_ordinal]
+            prior = PostingEntry.objects.filter(
+                organization_id=organization_id,
+                claim_line_id=target.claim_line_id,
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+            if prior + line.paid_amount + line.contractual_adjustment > target.original_charge:
+                blockers.append("overallocated_line")
+                break
     if not blockers and not AcceptedEventEvidence.objects.filter(
         organization_id=organization_id, candidate=candidate
     ).exists():
         blockers.append("unaccepted")
+    from .queries import BLOCKER_ORDER
+
+    ordered = tuple(reason for reason in BLOCKER_ORDER if reason in set(blockers))
     return OutcomeCommandResult(
         "candidate_reevaluated", candidate_id=candidate.id,
-        current_blockers=tuple(dict.fromkeys(blockers)),
+        current_blockers=ordered,
     )

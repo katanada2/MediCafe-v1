@@ -104,3 +104,37 @@ def assert_outcome_boundary(testcase: SimpleTestCase, *, candidate, expected_eve
     testcase.assertTrue(all(entry.batch.event_id == expected_event.id for entry in entries))
     testcase.assertTrue(all(entry.account.claim_revision_id == candidate.claim_revision_id for entry in entries))
     return expected_event
+
+
+def assert_archive_boundary(testcase: SimpleTestCase, *, projection,
+                            expected_attempts: int, expected_confirmed: bool):
+    """Assert exact projection, work attempts and independent readback agree."""
+    import hashlib
+
+    from medicafe_v1.archival.models import (
+        ArchiveAttempt, ArchiveAttemptOutcome, ArchiveReadbackObservation,
+    )
+
+    projection.refresh_from_db()
+    payload = bytes(projection.projection_bytes)
+    testcase.assertEqual(hashlib.sha256(payload).hexdigest(), projection.projection_digest)
+    testcase.assertEqual(len(payload), projection.byte_length)
+    attempts = ArchiveAttempt.objects.filter(projection=projection).order_by("started_at", "id")
+    testcase.assertEqual(attempts.count(), expected_attempts)
+    testcase.assertTrue(all(item.projection_digest == projection.projection_digest for item in attempts))
+    verified = ArchiveReadbackObservation.objects.filter(
+        lookup_projection=projection,
+        observed_state=ArchiveReadbackObservation.STATE_VERIFIED,
+        received_bytes=projection.projection_bytes,
+    )
+    testcase.assertEqual(verified.exists(), expected_confirmed)
+    confirmed = ArchiveAttemptOutcome.objects.filter(
+        attempt__projection=projection,
+        kind=ArchiveAttemptOutcome.TARGET_CONFIRMED,
+        readback_observation__in=verified,
+    )
+    if confirmed.exists():
+        testcase.assertTrue(expected_confirmed)
+    if expected_confirmed:
+        testcase.assertEqual(projection.work.state, "finished")
+    return projection

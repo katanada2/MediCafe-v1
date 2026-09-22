@@ -75,6 +75,43 @@ class HistoricalDeliveryAttribution:
     lines: tuple[HistoricalClaimLine, ...]
 
 
+@dataclass(frozen=True)
+class ArchiveClaimLineSnapshot:
+    claim_line_id: object
+    ordinal: int
+    service_id: object
+    service_revision_id: object
+    code: str
+    units: int
+    unit_amount: object
+    line_amount: object
+    currency: str
+
+
+@dataclass(frozen=True)
+class ArchiveDeliverySnapshot:
+    intent_id: object
+    claim_revision_id: object
+    delivery_key: object
+    receiver_version: str
+    observation_id: object
+    receipt_id: str
+    evidence_fingerprint: str
+
+
+@dataclass(frozen=True)
+class ClaimArchiveSnapshot:
+    organization_id: object
+    encounter_id: object
+    claim_id: object | None
+    current_revision_id: object | None
+    envelope_digest: str
+    currency: str
+    total_amount: object | None
+    lines: tuple[ArchiveClaimLineSnapshot, ...]
+    deliveries: tuple[ArchiveDeliverySnapshot, ...]
+
+
 def _require_read_committed_atomic():
     if not connection.in_atomic_block:
         raise CommandError("acceptance_transaction_required")
@@ -159,6 +196,11 @@ def historical_delivery_attribution(
         receipt_id=receiver_receipt_id,
     )
     target = namespace.filter(organization_id=organization_id, intent=intent)
+    if ReceiverObservation.objects.filter(
+        organization_id=organization_id, intent=intent,
+        observed_state=ReceiverObservation.STATE_CONFLICT,
+    ).exists():
+        raise CommandError("conflicting_identity_or_content")
     if namespace.filter(observed_state=ReceiverObservation.STATE_CONFLICT).exists():
         raise CommandError("conflicting_identity_or_content")
     observation = target.filter(
@@ -457,3 +499,36 @@ def claim_for_encounter(*, actor, organization_id, encounter_id):
     return Claim.objects.select_related("current_revision").filter(
         organization_id=organization_id, encounter_id=encounter_id
     ).first()
+
+
+def archive_claim_snapshot(*, actor, organization_id, encounter_id):
+    """Return deterministic claim and accepted-delivery state in caller snapshot."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    claim = Claim.objects.select_related("current_revision").filter(
+        organization_id=organization_id, encounter_id=encounter_id
+    ).first()
+    if claim is None or claim.current_revision_id is None:
+        return ClaimArchiveSnapshot(
+            organization_id, encounter_id, claim.id if claim else None,
+            None, "", "", None, (), (),
+        )
+    revision = ClaimRevision.objects.get(
+        organization_id=organization_id, id=claim.current_revision_id, claim=claim
+    )
+    lines = tuple(ArchiveClaimLineSnapshot(
+        line.id, line.ordinal, line.service_id, line.service_revision_id,
+        line.code, line.units, line.unit_amount, line.line_amount, line.currency,
+    ) for line in revision.lines.order_by("ordinal", "id"))
+    observations = ReceiverObservation.objects.filter(
+        organization_id=organization_id, intent__claim=claim,
+        observed_state=ReceiverObservation.STATE_ACCEPTED, binding_valid=True,
+    ).select_related("intent").order_by("recorded_at", "id")
+    deliveries = tuple(ArchiveDeliverySnapshot(
+        item.intent_id, item.intent.claim_revision_id, item.intent.delivery_key,
+        item.receiver_version, item.id, item.receipt_id, item.evidence_fingerprint,
+    ) for item in observations)
+    return ClaimArchiveSnapshot(
+        organization_id, encounter_id, claim.id, revision.id,
+        revision.envelope_digest, revision.currency, revision.total_amount,
+        lines, deliveries,
+    )

@@ -20,6 +20,25 @@ class ServiceDependency:
     current_disposition: str
 
 
+@dataclass(frozen=True)
+class ArchiveServiceSnapshot:
+    service_id: object
+    revision_id: object
+    code: str
+    units: int
+    unit_amount: object
+    currency: str
+
+
+@dataclass(frozen=True)
+class EncounterArchiveSnapshot:
+    organization_id: object
+    patient_id: object
+    encounter_id: object
+    service_date: object
+    services: tuple[ArchiveServiceSnapshot, ...]
+
+
 def exact_alias_suggestion(*, actor, organization_id, namespace, value):
     require_active_membership(actor=actor, organization_id=organization_id)
     return PatientAlias.objects.select_related("patient").filter(
@@ -112,3 +131,27 @@ def identity_evidence_for_encounter(*, actor, organization_id, encounter_id):
     ).select_related(
         "observation", "patient", "encounter"
     ).order_by("decided_at", "id")
+
+
+def archive_encounter_snapshot(*, actor, organization_id, encounter_id):
+    """Return deterministic accepted records state in the caller's snapshot."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    try:
+        encounter = Encounter.objects.select_related("patient").get(
+            organization_id=organization_id, id=encounter_id
+        )
+    except (Encounter.DoesNotExist, ValueError) as exc:
+        raise CommandError("encounter_not_found") from exc
+    services = Service.objects.filter(
+        organization_id=organization_id, encounter=encounter,
+        current_revision__disposition="accepted",
+    ).select_related("current_revision").order_by("created_at", "id")
+    return EncounterArchiveSnapshot(
+        encounter.organization_id, encounter.patient_id, encounter.id,
+        encounter.service_date,
+        tuple(ArchiveServiceSnapshot(
+            service.id, service.current_revision_id,
+            service.current_revision.code, service.current_revision.units,
+            service.current_revision.unit_amount, service.current_revision.currency,
+        ) for service in services),
+    )

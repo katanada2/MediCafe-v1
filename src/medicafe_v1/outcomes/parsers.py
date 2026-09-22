@@ -24,7 +24,7 @@ LIFECYCLE_KEYS = BASE_KEYS | {
     "lifecycle_sequence", "predecessor_event_id", "status",
 }
 REMITTANCE_KEYS = BASE_KEYS | {"currency", "lines"}
-MONEY_RE = re.compile(r"^(0|[1-9][0-9]{0,7})\.[0-9]{2}$")
+MONEY_RE = re.compile(r"^(0|[1-9][0-9]{0,7})(\.[0-9]{1,2})?$")
 
 
 @dataclass(frozen=True)

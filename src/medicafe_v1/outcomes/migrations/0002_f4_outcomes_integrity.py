@@ -86,7 +86,7 @@ CREATE TRIGGER outcomes_candidate_admission
   FOR EACH ROW EXECUTE FUNCTION outcomes_f4_candidate_guard();
 
 CREATE FUNCTION outcomes_f4_candidate_line_guard() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE candidate_row outcomes_inboundcandidate%ROWTYPE;
+DECLARE candidate_row outcomes_inboundcandidate%ROWTYPE; matched integer;
 BEGIN
   SELECT * INTO candidate_row FROM outcomes_inboundcandidate WHERE id=NEW.candidate_id;
   IF candidate_row.id IS NULL
@@ -94,12 +94,64 @@ BEGIN
      OR candidate_row.kind <> 'remittance' THEN
     RAISE EXCEPTION 'inbound candidate line mismatch' USING ERRCODE='23514';
   END IF;
+  IF EXISTS (SELECT 1 FROM outcomes_inboundattempt attempt
+      WHERE attempt.delivery_id=candidate_row.delivery_id
+        AND attempt.interpreter_version=candidate_row.interpreter_version
+        AND attempt.succeeded) THEN
+    RAISE EXCEPTION 'inbound candidate lines are sealed after interpretation'
+      USING ERRCODE='55000';
+  END IF;
+  SELECT count(*) INTO matched
+    FROM jsonb_array_elements(candidate_row.normalized_content->'lines') item
+   WHERE (item->>'line_ordinal')::integer=NEW.line_ordinal
+     AND (item->>'paid_amount')::numeric=NEW.paid_amount
+     AND (item->>'contractual_adjustment')::numeric=NEW.contractual_adjustment;
+  IF matched <> 1 THEN
+    RAISE EXCEPTION 'candidate line is not an exact retained semantic component'
+      USING ERRCODE='23514';
+  END IF;
   RETURN NEW;
 END;
 $$;
 CREATE TRIGGER outcomes_candidate_line_admission
   BEFORE INSERT ON outcomes_inboundcandidateline
   FOR EACH ROW EXECUTE FUNCTION outcomes_f4_candidate_line_guard();
+
+CREATE FUNCTION outcomes_f4_candidate_complete_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE expected_count integer; actual_count integer; mismatch_count integer;
+BEGIN
+  IF NEW.kind='lifecycle' THEN
+    IF EXISTS (SELECT 1 FROM outcomes_inboundcandidateline WHERE candidate_id=NEW.id) THEN
+      RAISE EXCEPTION 'lifecycle candidate cannot have remittance lines' USING ERRCODE='23514';
+    END IF;
+  ELSE
+    expected_count := jsonb_array_length(NEW.normalized_content->'lines');
+    SELECT count(*) INTO actual_count FROM outcomes_inboundcandidateline WHERE candidate_id=NEW.id;
+    SELECT count(*) INTO mismatch_count
+      FROM outcomes_inboundcandidateline line
+     WHERE line.candidate_id=NEW.id AND NOT EXISTS (
+       SELECT 1 FROM jsonb_array_elements(NEW.normalized_content->'lines') item
+        WHERE (item->>'line_ordinal')::integer=line.line_ordinal
+          AND (item->>'paid_amount')::numeric=line.paid_amount
+          AND (item->>'contractual_adjustment')::numeric=line.contractual_adjustment
+     );
+    IF actual_count IS DISTINCT FROM expected_count OR mismatch_count <> 0 THEN
+      RAISE EXCEPTION 'candidate line relation is incomplete or mismatched' USING ERRCODE='23514';
+    END IF;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM outcomes_inboundattempt attempt
+      WHERE attempt.delivery_id=NEW.delivery_id
+        AND attempt.interpreter_version=NEW.interpreter_version
+        AND attempt.succeeded) THEN
+    RAISE EXCEPTION 'successful candidate requires terminal interpretation attempt'
+      USING ERRCODE='23514';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+CREATE CONSTRAINT TRIGGER outcomes_candidate_complete
+  AFTER INSERT ON outcomes_inboundcandidate DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION outcomes_f4_candidate_complete_guard();
 
 CREATE FUNCTION outcomes_f4_conflict_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE left_row outcomes_inboundcandidate%ROWTYPE; right_row outcomes_inboundcandidate%ROWTYPE;
@@ -146,6 +198,12 @@ BEGIN
     RAISE EXCEPTION 'accepted event candidate or delivery evidence mismatch' USING ERRCODE='23514';
   END IF;
   IF NEW.kind='lifecycle' THEN
+    IF NEW.lifecycle_sequence IS DISTINCT FROM candidate_row.lifecycle_sequence
+       OR NEW.predecessor_event_id IS DISTINCT FROM candidate_row.predecessor_event_id
+       OR NEW.lifecycle_status IS DISTINCT FROM candidate_row.lifecycle_status THEN
+      RAISE EXCEPTION 'accepted lifecycle event differs from retained candidate'
+        USING ERRCODE='23514';
+    END IF;
     IF NEW.lifecycle_sequence=1 AND NEW.predecessor_event_id IS NOT NULL THEN
       RAISE EXCEPTION 'first lifecycle event cannot name predecessor' USING ERRCODE='23514';
     ELSIF NEW.lifecycle_sequence>1 THEN
@@ -158,6 +216,10 @@ BEGIN
         RAISE EXCEPTION 'lifecycle predecessor missing or mismatched' USING ERRCODE='23514';
       END IF;
     END IF;
+  ELSIF NEW.kind='remittance' AND (
+      NEW.lifecycle_sequence IS NOT NULL OR NEW.predecessor_event_id IS NOT NULL
+      OR NEW.lifecycle_status <> '') THEN
+    RAISE EXCEPTION 'remittance event has lifecycle fields' USING ERRCODE='23514';
   END IF;
   RETURN NEW;
 END;
@@ -247,7 +309,7 @@ CREATE TRIGGER outcomes_batch_admission
 CREATE FUNCTION outcomes_f4_entry_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE batch_row outcomes_postingbatch%ROWTYPE; event_row outcomes_acceptedevent%ROWTYPE;
         account_row outcomes_financialaccount%ROWTYPE; basis_row outcomes_chargebasis%ROWTYPE;
-        allocated numeric;
+        candidate_line outcomes_inboundcandidateline%ROWTYPE; allocated numeric; expected_amount numeric;
 BEGIN
   UPDATE outcomes_financialaccount
      SET posting_generation=posting_generation+1
@@ -269,6 +331,20 @@ BEGIN
      OR NEW.currency IS DISTINCT FROM account_row.currency
      OR NEW.currency IS DISTINCT FROM basis_row.currency THEN
     RAISE EXCEPTION 'posting entry relationship mismatch' USING ERRCODE='23514';
+  END IF;
+  IF NEW.kind NOT IN ('payer_reported_payment','contractual_adjustment') THEN
+    RAISE EXCEPTION 'posting entry kind unsupported' USING ERRCODE='23514';
+  END IF;
+  SELECT line.* INTO candidate_line
+    FROM outcomes_inboundcandidateline line
+   WHERE line.candidate_id=event_row.primary_candidate_id
+     AND line.line_ordinal=basis_row.line_ordinal;
+  expected_amount := CASE WHEN NEW.kind='payer_reported_payment'
+    THEN candidate_line.paid_amount ELSE candidate_line.contractual_adjustment END;
+  IF candidate_line.id IS NULL OR expected_amount <= 0
+     OR NEW.amount IS DISTINCT FROM expected_amount THEN
+    RAISE EXCEPTION 'posting entry is not an exact retained candidate component'
+      USING ERRCODE='23514';
   END IF;
   SELECT COALESCE(sum(amount),0) INTO allocated
     FROM outcomes_postingentry WHERE charge_basis_id=NEW.charge_basis_id;
@@ -348,12 +424,18 @@ BEGIN
     RAISE EXCEPTION 'outcomes command receipt result mismatch' USING ERRCODE='23514';
   END IF;
   IF NEW.command_kind='post_remittance' THEN
+    IF candidate_row.kind <> 'remittance' OR event_row.kind <> 'remittance' THEN
+      RAISE EXCEPTION 'post remittance receipt requires remittance result' USING ERRCODE='23514';
+    END IF;
     SELECT * INTO batch_row FROM outcomes_postingbatch WHERE id=NEW.result_batch_id;
     IF batch_row.id IS NULL OR batch_row.event_id IS DISTINCT FROM event_row.id THEN
       RAISE EXCEPTION 'remittance receipt batch mismatch' USING ERRCODE='23514';
     END IF;
-  ELSIF NEW.command_kind='accept_lifecycle' AND NEW.result_batch_id IS NOT NULL THEN
-    RAISE EXCEPTION 'lifecycle receipt cannot reference posting batch' USING ERRCODE='23514';
+  ELSIF NEW.command_kind='accept_lifecycle' THEN
+    IF candidate_row.kind <> 'lifecycle' OR event_row.kind <> 'lifecycle'
+       OR NEW.result_batch_id IS NOT NULL THEN
+      RAISE EXCEPTION 'lifecycle receipt requires lifecycle result without batch' USING ERRCODE='23514';
+    END IF;
   ELSIF NEW.command_kind NOT IN ('accept_lifecycle','post_remittance') THEN
     RAISE EXCEPTION 'unsupported outcomes command receipt kind' USING ERRCODE='23514';
   END IF;
@@ -388,6 +470,7 @@ DROP TRIGGER IF EXISTS outcomes_evidence_link_admission ON outcomes_acceptedeven
 DROP TRIGGER IF EXISTS outcomes_event_admission ON outcomes_acceptedevent;
 DROP TRIGGER IF EXISTS outcomes_conflict_admission ON outcomes_inboundconflict;
 DROP TRIGGER IF EXISTS outcomes_candidate_line_admission ON outcomes_inboundcandidateline;
+DROP TRIGGER IF EXISTS outcomes_candidate_complete ON outcomes_inboundcandidate;
 DROP TRIGGER IF EXISTS outcomes_candidate_admission ON outcomes_inboundcandidate;
 DROP TRIGGER IF EXISTS outcomes_attempt_admission ON outcomes_inboundattempt;
 DROP TRIGGER IF EXISTS outcomes_financialaccount_guard ON outcomes_financialaccount;
@@ -414,6 +497,7 @@ DROP FUNCTION IF EXISTS outcomes_f4_evidence_link_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_event_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_conflict_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_candidate_line_guard();
+DROP FUNCTION IF EXISTS outcomes_f4_candidate_complete_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_candidate_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_attempt_guard();
 DROP FUNCTION IF EXISTS outcomes_f4_account_guard();
