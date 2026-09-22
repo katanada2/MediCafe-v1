@@ -7,7 +7,10 @@ from django.test import Client
 from django.urls import reverse
 
 from medicafe_v1.records.models import IdentityDecision
+from medicafe_v1.sources.commands import MAX_UPLOAD_BYTES
+from medicafe_v1.sources.domain import CommandError
 from medicafe_v1.sources.models import Delivery, ParseResult
+from medicafe_v1.sources.views import _read_bounded_upload
 
 from tests.fixtures.synthetic_inputs import CSV_MEDIA_TYPE, SYNTHETIC_SENTINEL, csv_bytes, synthetic_rows
 from tests.f1.base import F1TestCase
@@ -112,6 +115,47 @@ class WebScopingAndPostTests(F1TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "This field is required")
         self.assertContains(response, source_key)
+        self.assertEqual(Delivery.objects.filter(organization=self.alpha).count(), 0)
+
+    def test_upload_limit_is_checked_before_read_and_while_streaming(self):
+        class DeclaredOversizeUpload:
+            size = MAX_UPLOAD_BYTES + 1
+            chunks_accessed = False
+
+            def chunks(self):
+                self.chunks_accessed = True
+                raise AssertionError("oversized declared upload must not be read")
+
+        declared = DeclaredOversizeUpload()
+        with self.assertRaises(CommandError) as declared_error:
+            _read_bounded_upload(declared)
+        self.assertEqual(declared_error.exception.reason_code, "upload_too_large")
+        self.assertFalse(declared.chunks_accessed)
+
+        class StreamingOverflowUpload:
+            size = None
+
+            def chunks(self):
+                yield b"x" * MAX_UPLOAD_BYTES
+                yield b"x"
+
+        with self.assertRaises(CommandError) as streaming_error:
+            _read_bounded_upload(StreamingOverflowUpload())
+        self.assertEqual(streaming_error.exception.reason_code, "upload_too_large")
+
+        client = self._login(self.alpha_user)
+        upload_url = reverse("upload", kwargs={"organization_id": self.alpha.id})
+        token = self._csrf(client, upload_url)
+        response = client.post(upload_url, {
+            "csrfmiddlewaretoken": token,
+            "source_namespace": "synthetic-oversized-upload",
+            "source_key": str(uuid.uuid4()),
+            "source_file": SimpleUploadedFile(
+                "synthetic.csv", b"x" * (MAX_UPLOAD_BYTES + 1), content_type=CSV_MEDIA_TYPE,
+            ),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "upload_too_large")
         self.assertEqual(Delivery.objects.filter(organization=self.alpha).count(), 0)
 
     def test_observation_resolution_post_is_explicit_and_scoped(self):

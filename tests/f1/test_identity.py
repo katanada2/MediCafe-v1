@@ -79,6 +79,17 @@ class IdentityResolutionTests(F1TestCase):
         self.assertEqual(Encounter.objects.filter(organization=self.alpha).count(), 1)
         self.assertEqual(IdentityDecision.objects.filter(organization=self.alpha).count(), 1)
 
+        other_observation = self._parsed_observation(note="SYNTHETIC_CROSS_OBSERVATION_REQUEST")
+        with self.assertRaises(CommandError) as cross_observation_request:
+            resolve_identity(
+                actor=self.alpha_user, organization_id=self.alpha.id,
+                observation_id=other_observation.id, request_uuid=request_uuid, intent=intent,
+            )
+        self.assertEqual(cross_observation_request.exception.reason_code, "request_input_conflict")
+        self.assertFalse(IdentityDecision.objects.filter(observation=other_observation).exists())
+        self.assertEqual(Patient.objects.filter(organization=self.alpha).count(), 1)
+        self.assertEqual(Encounter.objects.filter(organization=self.alpha).count(), 1)
+
         changed = ResolutionIntent(
             mode="create", reason="Synthetic changed intent", display_name="Synthetic Different Patient",
             alias_namespace="synthetic", alias_value="replay-002", service_date="2026-01-15",

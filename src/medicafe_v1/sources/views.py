@@ -10,7 +10,7 @@ from medicafe_v1.records.models import Encounter, IdentityDecision
 from medicafe_v1.records.queries import exact_alias_suggestion
 
 from .artifacts import LocalArtifactStore
-from .commands import admit_delivery, parse_delivery
+from .commands import MAX_UPLOAD_BYTES, admit_delivery, parse_delivery
 from .domain import CommandError
 from .forms import ResolutionForm, UploadForm
 from .models import Delivery, Observation, ParseAttempt, ParseResult
@@ -23,6 +23,18 @@ def _deny_on_authorization(callable_):
         return callable_()
     except AuthorizationError as exc:
         raise Http404 from exc
+
+
+def _read_bounded_upload(source_file):
+    declared_size = getattr(source_file, "size", None)
+    if declared_size is not None and declared_size > MAX_UPLOAD_BYTES:
+        raise CommandError("upload_too_large")
+    content = bytearray()
+    for chunk in source_file.chunks():
+        if len(content) + len(chunk) > MAX_UPLOAD_BYTES:
+            raise CommandError("upload_too_large")
+        content.extend(chunk)
+    return bytes(content)
 
 
 @login_required
@@ -67,10 +79,11 @@ def upload(request, organization_id):
     if request.method == "POST" and form.is_valid():
         source_file = form.cleaned_data["source_file"]
         try:
+            content = _read_bounded_upload(source_file)
             result = admit_delivery(
                 actor=request.user, organization_id=organization_id,
                 source_namespace=form.cleaned_data["source_namespace"],
-                source_key=str(form.cleaned_data["source_key"]), content=source_file.read(),
+                source_key=str(form.cleaned_data["source_key"]), content=content,
                 media_type=source_file.content_type,
                 supersedes_id=form.cleaned_data.get("supersedes_id"),
             )

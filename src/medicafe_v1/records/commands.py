@@ -39,7 +39,8 @@ def _result(decision, reason_code):
 
 def resolve_identity(*, actor, organization_id, observation_id, request_uuid, intent, artifact_store=None):
     require_active_membership(actor=actor, organization_id=organization_id)
-    input_digest = intent.digest()
+    digest_input = f"{observation_id}:{intent.digest()}".encode("ascii")
+    input_digest = hashlib.sha256(digest_input).hexdigest()
     with transaction.atomic():
         require_active_membership(actor=actor, organization_id=organization_id, for_update=True)
         prior_request = IdentityDecision.objects.filter(

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from medicafe_v1.sources.domain import CommandError
+from medicafe_v1.sources.models import Observation, ParseAttempt, ParseResult
 from medicafe_v1.sources.parsers import MAX_ROWS, parse_csv, parse_docx
 
 from tests.fixtures.synthetic_inputs import CSV_HEADER, csv_bytes, docx_bytes, empty_docx_bytes, synthetic_rows
@@ -39,6 +40,20 @@ class ParserValidationTests(F1TestCase):
         with self.assertRaises(CommandError) as wrong_columns:
             parse_csv(b"row_id,patient_ref,service_date,note\nrow-1,000042,2026-01-15,note,extra\n")
         self.assertEqual(wrong_columns.exception.reason_code, "invalid_column_count")
+
+        short_content = b"row_id,patient_ref,service_date,note\nrow-1,000042\n"
+        with self.assertRaises(CommandError) as short_columns:
+            parse_csv(short_content)
+        self.assertEqual(short_columns.exception.reason_code, "invalid_column_count")
+        admitted = self.admit(content=short_content)
+        with self.assertRaises(CommandError) as persisted_short:
+            self.parse(admitted.delivery_id)
+        self.assertEqual(persisted_short.exception.reason_code, "invalid_column_count")
+        attempt = ParseAttempt.objects.get(delivery_id=admitted.delivery_id)
+        self.assertFalse(attempt.succeeded)
+        self.assertEqual(attempt.reason_code, "invalid_column_count")
+        self.assertFalse(ParseResult.objects.filter(delivery_id=admitted.delivery_id).exists())
+        self.assertFalse(Observation.objects.filter(parse_result__delivery_id=admitted.delivery_id).exists())
 
         rows = synthetic_rows()
         rows.extend({"row_id": f"row-{index:04d}", "patient_ref": "000042", "service_date": "2026-01-15", "note": "synthetic"}

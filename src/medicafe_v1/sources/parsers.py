@@ -65,7 +65,7 @@ def parse_csv(content):
     for ordinal, record in enumerate(reader, start=1):
         if ordinal > MAX_ROWS:
             raise CommandError("row_limit_exceeded")
-        if None in record:
+        if None in record or any(value is None for value in record.values()):
             raise CommandError("invalid_column_count")
         raw = {key: record[key] for key in EXPECTED_HEADER}
         normalized, warnings = _normalized(raw)
