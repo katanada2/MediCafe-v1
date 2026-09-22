@@ -9,8 +9,8 @@ from decimal import Decimal
 
 from django.db import connection
 
-from medicafe_v1.claims.commands import prepare_claim_revision
-from medicafe_v1.claims.models import ClaimRevision
+from medicafe_v1.claims.commands import approve_claim_revision, prepare_claim_revision
+from medicafe_v1.claims.models import ClaimApproval, ClaimRevision
 
 from tests.f2.base import F2TransactionTestCase
 
@@ -40,6 +40,11 @@ class F2DurabilityTests(F2TransactionTestCase):
             reason="Synthetic fresh-process envelope",
         )
         revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        approved = approve_claim_revision(
+            actor=self.alpha_user, organization_id=self.alpha.id, request_id=uuid.uuid4(),
+            claim_revision_id=revision.id, expected_envelope_digest=revision.envelope_digest,
+        )
+        approval = ClaimApproval.objects.get(pk=approved.approval_id)
         envelope_hex = bytes(revision.envelope_bytes).hex()
         database = connection.settings_dict
         environment = os.environ.copy()
@@ -54,10 +59,14 @@ class F2DurabilityTests(F2TransactionTestCase):
         })
         script = (
             "import django; django.setup(); "
+            "from medicafe_v1.access.models import User; "
             "from medicafe_v1.claims.models import ClaimRevision; "
+            "from medicafe_v1.claims.queries import claim_actionability; "
             f"r=ClaimRevision.objects.get(pk='{revision.id}'); "
+            f"a=claim_actionability(actor=User.objects.get(pk='{self.alpha_user.id}'), "
+            f"organization_id='{self.alpha.id}', claim_revision_id=r.id); "
             "lines=list(r.lines.order_by('ordinal')); "
-            "print(r.claim_id, r.id, r.envelope_digest, bytes(r.envelope_bytes).hex(), "
+            "print(r.claim_id, r.id, r.envelope_digest, bytes(r.envelope_bytes).hex(), a.reason_code, a.approval_id, "
             "','.join(str(line.service_revision_id) for line in lines))"
         )
         completed = subprocess.run(
@@ -73,4 +82,5 @@ class F2DurabilityTests(F2TransactionTestCase):
         self.assertIn(revision.envelope_digest, completed.stdout)
         self.assertIn(envelope_hex, completed.stdout)
         self.assertIn(str(service.revision_id), completed.stdout)
-
+        self.assertIn("approved_current", completed.stdout)
+        self.assertIn(str(approval.id), completed.stdout)

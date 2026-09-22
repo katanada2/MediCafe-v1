@@ -6,6 +6,10 @@ ALTER TABLE claims_claimrevision ADD CONSTRAINT claims_rev_approval_target_uniq
   UNIQUE (organization_id, id, envelope_digest);
 ALTER TABLE claims_claimrevision ADD CONSTRAINT claims_rev_line_target_uniq
   UNIQUE (organization_id, claim_id, encounter_id, patient_id, id);
+ALTER TABLE claims_claimrevision ADD CONSTRAINT claims_rev_receipt_policy_target_uniq
+  UNIQUE (organization_id, id, policy_version, policy_generation);
+ALTER TABLE claims_claimapproval ADD CONSTRAINT claims_approval_receipt_target_uniq
+  UNIQUE (organization_id, claim_revision_id, id);
 
 ALTER TABLE claims_claim ADD CONSTRAINT claims_case_encounter_patient_fk
   FOREIGN KEY (organization_id, patient_id, encounter_id)
@@ -47,6 +51,16 @@ ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_revision_t
 ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_approval_target_fk
   FOREIGN KEY (organization_id, result_approval_id)
   REFERENCES claims_claimapproval (organization_id, id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_claim_revision_pair_fk
+  FOREIGN KEY (organization_id, result_claim_id, result_revision_id)
+  REFERENCES claims_claimrevision (organization_id, claim_id, id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_revision_approval_pair_fk
+  FOREIGN KEY (organization_id, result_revision_id, result_approval_id)
+  REFERENCES claims_claimapproval (organization_id, claim_revision_id, id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_revision_policy_pair_fk
+  FOREIGN KEY (organization_id, result_revision_id, result_policy_version, result_policy_generation)
+  REFERENCES claims_claimrevision (organization_id, id, policy_version, policy_generation)
+  DEFERRABLE INITIALLY DEFERRED;
 
 ALTER TABLE claims_syntheticpolicyselection ADD CONSTRAINT claims_policy_version_ck
   CHECK (version IN ('synthetic-v1', 'synthetic-v2'));
@@ -65,6 +79,19 @@ ALTER TABLE claims_claimline ADD CONSTRAINT claims_line_unit_amount_ck CHECK (un
 ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_kind_ck
   CHECK (command_kind IN ('prepare_claim_revision', 'approve_claim_revision', 'select_synthetic_policy'));
 ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_digest_ck CHECK (intent_digest ~ '^[0-9a-f]{64}$');
+ALTER TABLE claims_claimscommandreceipt ADD CONSTRAINT claims_receipt_result_shape_ck CHECK (
+  (command_kind = 'prepare_claim_revision'
+    AND result_claim_id IS NOT NULL AND result_revision_id IS NOT NULL AND result_approval_id IS NULL
+    AND result_policy_version IN ('synthetic-v1', 'synthetic-v2') AND result_policy_generation IS NOT NULL)
+  OR
+  (command_kind = 'approve_claim_revision'
+    AND result_claim_id IS NOT NULL AND result_revision_id IS NOT NULL AND result_approval_id IS NOT NULL
+    AND result_policy_version IN ('synthetic-v1', 'synthetic-v2') AND result_policy_generation IS NOT NULL)
+  OR
+  (command_kind = 'select_synthetic_policy'
+    AND result_claim_id IS NULL AND result_revision_id IS NULL AND result_approval_id IS NULL
+    AND result_policy_version IN ('synthetic-v1', 'synthetic-v2') AND result_policy_generation IS NOT NULL)
+);
 
 CREATE FUNCTION claims_f2_reject_history_change() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -188,6 +215,7 @@ DROP FUNCTION IF EXISTS claims_f2_case_guard();
 DROP FUNCTION IF EXISTS claims_f2_revision_sequence_guard();
 DROP FUNCTION IF EXISTS claims_f2_reject_history_change();
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_digest_ck;
+ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_result_shape_ck;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_kind_ck;
 ALTER TABLE claims_claimline DROP CONSTRAINT IF EXISTS claims_line_unit_amount_ck;
 ALTER TABLE claims_claimline DROP CONSTRAINT IF EXISTS claims_line_units_ck;
@@ -201,8 +229,13 @@ ALTER TABLE claims_claimrevision DROP CONSTRAINT IF EXISTS claims_rev_route_ck;
 ALTER TABLE claims_claimrevision DROP CONSTRAINT IF EXISTS claims_rev_reason_nonblank_ck;
 ALTER TABLE claims_syntheticpolicyselection DROP CONSTRAINT IF EXISTS claims_policy_version_ck;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_approval_target_fk;
+ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_revision_policy_pair_fk;
+ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_revision_approval_pair_fk;
+ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_claim_revision_pair_fk;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_revision_target_fk;
 ALTER TABLE claims_claimscommandreceipt DROP CONSTRAINT IF EXISTS claims_receipt_claim_target_fk;
+ALTER TABLE claims_claimapproval DROP CONSTRAINT IF EXISTS claims_approval_receipt_target_uniq;
+ALTER TABLE claims_claimrevision DROP CONSTRAINT IF EXISTS claims_rev_receipt_policy_target_uniq;
 ALTER TABLE claims_claimapproval DROP CONSTRAINT IF EXISTS claims_approval_revision_digest_fk;
 ALTER TABLE claims_claimline DROP CONSTRAINT IF EXISTS claims_line_srev_target_fk;
 ALTER TABLE claims_claimline DROP CONSTRAINT IF EXISTS claims_line_service_target_fk;

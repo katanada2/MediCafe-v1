@@ -13,7 +13,9 @@ def require_active_membership(*, actor, organization_id, for_update=False):
     try:
         query = Membership.objects.select_related("organization")
         if for_update:
-            query = query.select_for_update()
+            # Same-organization commands still serialize, while FK KEY SHARE at a
+            # claims commit remains compatible and cannot invert the lock order.
+            query = query.select_for_update(no_key=True)
         return query.get(
             user=actor, organization_id=organization_id, is_active=True
         )

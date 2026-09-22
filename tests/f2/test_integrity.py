@@ -9,7 +9,12 @@ from medicafe_v1.claims.commands import (
     prepare_claim_revision,
     select_synthetic_policy,
 )
-from medicafe_v1.claims.models import ClaimApproval, ClaimLine, ClaimRevision
+from medicafe_v1.claims.models import (
+    ClaimApproval,
+    ClaimLine,
+    ClaimRevision,
+    ClaimsCommandReceipt,
+)
 from medicafe_v1.records.commands import revise_service
 from medicafe_v1.records.models import ServiceRevision
 
@@ -39,6 +44,96 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
             reason="Synthetic integrity claim",
         )
         return delivery, observation, resolved, service, ClaimRevision.objects.get(pk=claim.revision_id)
+
+    def test_receipts_bind_consistent_results_and_enforce_command_shapes(self):
+        _delivery_a, _observation_a, _resolved_a, _service_a, claim_a = self._claim_fixture(
+            note="SYNTHETIC_F2_RECEIPT_PAIR_A"
+        )
+        _delivery_b, _observation_b, _resolved_b, _service_b, claim_b = self._claim_fixture(
+            note="SYNTHETIC_F2_RECEIPT_PAIR_B"
+        )
+        approval_b = ClaimApproval.objects.create(
+            organization=self.alpha,
+            claim_revision=claim_b,
+            envelope_digest=claim_b.envelope_digest,
+            approved_by=self.alpha_user,
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ClaimsCommandReceipt.objects.create(
+                    organization=self.alpha,
+                    request_uuid=uuid.uuid4(),
+                    command_kind="prepare_claim_revision",
+                    target_key=f"encounter:{claim_a.encounter_id}",
+                    expected_predecessor_id=None,
+                    intent_digest="1" * 64,
+                    result_claim_id=claim_a.claim_id,
+                    result_revision=claim_b,
+                    result_policy_version=claim_b.policy_version,
+                    result_policy_generation=claim_b.policy_generation,
+                )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ClaimsCommandReceipt.objects.create(
+                    organization=self.alpha,
+                    request_uuid=uuid.uuid4(),
+                    command_kind="approve_claim_revision",
+                    target_key=f"claim-revision:{claim_a.id}",
+                    expected_predecessor_id=claim_a.id,
+                    intent_digest="2" * 64,
+                    result_claim_id=claim_a.claim_id,
+                    result_revision=claim_a,
+                    result_approval=approval_b,
+                    result_policy_version=claim_a.policy_version,
+                    result_policy_generation=claim_a.policy_generation,
+                )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ClaimsCommandReceipt.objects.create(
+                    organization=self.alpha,
+                    request_uuid=uuid.uuid4(),
+                    command_kind="prepare_claim_revision",
+                    target_key=f"encounter:{claim_a.encounter_id}",
+                    expected_predecessor_id=None,
+                    intent_digest="4" * 64,
+                    result_claim_id=claim_a.claim_id,
+                    result_revision=claim_a,
+                    result_policy_version="synthetic-v2",
+                    result_policy_generation=claim_a.policy_generation,
+                )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ClaimsCommandReceipt.objects.create(
+                    organization=self.alpha,
+                    request_uuid=uuid.uuid4(),
+                    command_kind="prepare_claim_revision",
+                    target_key=f"encounter:{claim_a.encounter_id}",
+                    expected_predecessor_id=None,
+                    intent_digest="3" * 64,
+                )
+
+        no_op_request = uuid.uuid4()
+        result = select_synthetic_policy(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=no_op_request,
+            expected_version="synthetic-v1",
+            expected_generation=1,
+            version="synthetic-v1",
+        )
+        self.assertEqual(result.reason_code, "policy_selection_unchanged")
+        receipt = ClaimsCommandReceipt.objects.get(
+            organization=self.alpha, request_uuid=no_op_request
+        )
+        self.assertIsNone(receipt.result_claim_id)
+        self.assertIsNone(receipt.result_revision_id)
+        self.assertIsNone(receipt.result_approval_id)
+        self.assertEqual(receipt.result_policy_version, "synthetic-v1")
+        self.assertEqual(receipt.result_policy_generation, 1)
 
     def test_immutable_history_and_service_claim_head_rewind_or_skip_fail(self):
         _delivery, observation, resolved, service, first_claim_revision = self._claim_fixture(
@@ -211,4 +306,3 @@ class F2PostgresIntegrityTests(F2TransactionTestCase):
                     line_amount=Decimal("6.00"),
                     currency="USD",
                 )
-

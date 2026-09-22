@@ -11,9 +11,7 @@ from tests.f1.base import F1TestCase, F1TransactionTestCase
 from tests.fixtures.synthetic_inputs import csv_bytes, synthetic_rows
 
 
-class F2TestCase(F1TestCase):
-    """Create isolated synthetic organizations and provision alpha's policy."""
-
+class F2FixtureMixin:
     def setUp(self):
         super().setUp()
         self.policy = initialize_synthetic_policy(
@@ -66,11 +64,9 @@ class F2TestCase(F1TestCase):
         )
 
 
-class F2TransactionTestCase(F1TransactionTestCase):
-    """F2 fixture setup without TestCase's outer transaction for race tests."""
+class F2TestCase(F2FixtureMixin, F1TestCase):
+    """Create isolated synthetic organizations and provision alpha's policy."""
 
-    def setUp(self):
-        super().setUp()
-        self.policy = initialize_synthetic_policy(
-            actor=self.alpha_user, organization_id=self.alpha.id
-        )
+
+class F2TransactionTestCase(F2FixtureMixin, F1TransactionTestCase):
+    """F2 fixture setup without TestCase's outer transaction for race tests."""

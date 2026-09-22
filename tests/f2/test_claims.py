@@ -109,7 +109,7 @@ class ClaimCommandTests(F2TestCase):
                 selected_service_revision_ids=[first.revision_id, second.revision_id],
                 route_id="synthetic-receiver",
                 route_version="v1",
-                reason="Synthetic changed line order",
+                reason="Synthetic exact ordered selection",
             )
         self.assertEqual(changed_order.exception.reason_code, "request_input_conflict")
 
@@ -172,6 +172,14 @@ class ClaimCommandTests(F2TestCase):
         self.assertEqual(still_current.reason_code, "approved_current")
 
     def test_policy_compare_and_set_replay_preserves_original_result(self):
+        for invalid_generation in (True, 1.5, Decimal("1.5")):
+            with self.assertRaises(CommandError) as invalid:
+                select_synthetic_policy(
+                    actor=self.alpha_user, organization_id=self.alpha.id,
+                    request_id=uuid.uuid4(), expected_version="synthetic-v1",
+                    expected_generation=invalid_generation, version="synthetic-v1",
+                )
+            self.assertEqual(invalid.exception.reason_code, "policy_generation_invalid")
         unchanged = select_synthetic_policy(
             actor=self.alpha_user,
             organization_id=self.alpha.id,
@@ -307,7 +315,7 @@ class ClaimCommandTests(F2TestCase):
         ))
 
     def test_envelope_validator_rejects_snapshot_arithmetic_and_total_mismatch(self):
-        _delivery, _observation, resolved, service, _unused = self._two_services(
+        _delivery, _observation, resolved, _service_a, service = self._two_services(
             note="SYNTHETIC_F2_ENVELOPE_MISMATCH"
         )
         prepared = prepare_claim_revision(
@@ -329,7 +337,7 @@ class ClaimCommandTests(F2TestCase):
 
         snapshot_revision = ClaimRevision.objects.get(pk=prepared.revision_id)
         snapshot_lines = list(snapshot_revision.lines.order_by("ordinal"))
-        snapshot_lines[0].code = "SYN-B"
+        snapshot_lines[0].code = "SYN-A"
         snapshot_bytes = serialize_payload(envelope_payload(snapshot_revision, snapshot_lines))
         snapshot_revision.envelope_bytes = snapshot_bytes
         snapshot_revision.envelope_digest = hashlib.sha256(snapshot_bytes).hexdigest()
@@ -355,6 +363,16 @@ class ClaimCommandTests(F2TestCase):
         total_revision.envelope_digest = hashlib.sha256(total_bytes).hexdigest()
         self.assertFalse(_revision_envelope_valid(
             actor=self.alpha_user, revision=total_revision, lines=total_lines
+        ))
+
+        policy_revision = ClaimRevision.objects.get(pk=prepared.revision_id)
+        policy_lines = list(policy_revision.lines.order_by("ordinal"))
+        policy_revision.policy_version = "synthetic-v2"
+        policy_bytes = serialize_payload(envelope_payload(policy_revision, policy_lines))
+        policy_revision.envelope_bytes = policy_bytes
+        policy_revision.envelope_digest = hashlib.sha256(policy_bytes).hexdigest()
+        self.assertFalse(_revision_envelope_valid(
+            actor=self.alpha_user, revision=policy_revision, lines=policy_lines
         ))
 
     def test_same_request_uuid_conflicts_across_command_kinds(self):
