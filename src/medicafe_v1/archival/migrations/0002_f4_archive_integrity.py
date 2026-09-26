@@ -226,13 +226,12 @@ BEGIN
        OR NEW.fencing_generation < OLD.fencing_generation THEN
       RAISE EXCEPTION 'archive work identity or fence cannot rewind' USING ERRCODE='55000';
     END IF;
-    IF OLD.state='pending' AND NEW.state='leased' THEN
-      IF NEW.fencing_generation <> OLD.fencing_generation+1 THEN
-        RAISE EXCEPTION 'archive lease requires a fresh fence' USING ERRCODE='23514';
+    IF NEW.state='leased' THEN
+      IF OLD.state <> 'pending'
+         OR NEW.fencing_generation <> OLD.fencing_generation+1 THEN
+        RAISE EXCEPTION 'archive lease requires pending state and a fresh fence'
+          USING ERRCODE='23514';
       END IF;
-    ELSIF OLD.state='leased' AND NEW.state='leased' THEN
-      RAISE EXCEPTION 'archive lease owner or expiry cannot be replaced or extended'
-        USING ERRCODE='55000';
     ELSIF NEW.fencing_generation <> OLD.fencing_generation THEN
       RAISE EXCEPTION 'archive fence changes only on pending to leased transition'
         USING ERRCODE='23514';

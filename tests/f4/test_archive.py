@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.db import DatabaseError, transaction
+from django.test import SimpleTestCase
 from django.utils import timezone
 
-from medicafe_v1.archival.adapter import ArchiveEvidence, ArchiveTransportResult
+from medicafe_v1.archival.adapter import (
+    ArchiveEvidence, ArchiveTransportResult, FrozenArchiveProjection,
+    LoopbackArchiveAdapter,
+)
 from medicafe_v1.archival.commands import (
     capture_archive_projection, queue_archive_batch, retry_archive_item,
 )
@@ -72,6 +77,27 @@ class WrongProjectionReadbackAdapter(MemoryArchiveAdapter):
             wrong.projection_digest, wrong.byte_length, wrong.payload,
             timezone.now().isoformat(),
         )
+
+
+class ArchiveAdapterTests(SimpleTestCase):
+    def test_non_string_send_status_is_bounded_unknown(self):
+        frozen = FrozenArchiveProjection(
+            str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), 1,
+            str(uuid.uuid4()), "synthetic-archive", "v1", "a" * 64, 2, b"{}",
+        )
+        adapter = LoopbackArchiveAdapter(
+            timeout=0.1, endpoint="http://127.0.0.1:8875/v1",
+        )
+        for malformed in ([], {}):
+            with self.subTest(status=malformed), patch.object(
+                adapter.opener, "open"
+            ) as opened, patch.object(
+                adapter, "_decode", return_value={"status": malformed}
+            ):
+                opened.return_value.__enter__.return_value = object()
+                result = adapter.send(frozen)
+                self.assertEqual(result.status, "unknown")
+                self.assertEqual(result.reason, "archive_response_invalid")
 
 
 class ArchiveFoundationTests(F4TransactionTestCase):
@@ -318,4 +344,23 @@ class ArchiveFoundationTests(F4TransactionTestCase):
                 state=ArchiveWork.STATE_LEASED,
                 lease_owner="forged-worker",
                 lease_expires_at=timezone.now() + timedelta(seconds=30),
+            )
+
+    def test_finished_work_cannot_be_revived_without_pending_fresh_fence(self):
+        captured = self.capture()
+        queue_archive_batch(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), projection_ids=[captured.projection_id],
+        )
+        work = ArchiveWork.objects.get(projection_id=captured.projection_id)
+        ArchiveWork.objects.filter(id=work.id).update(
+            state=ArchiveWork.STATE_FINISHED, blocking_reason="synthetic-finished",
+        )
+
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            ArchiveWork.objects.filter(id=work.id).update(
+                state=ArchiveWork.STATE_LEASED,
+                lease_owner="forged-revival",
+                lease_expires_at=timezone.now() + timedelta(seconds=30),
+                fencing_generation=work.fencing_generation,
             )

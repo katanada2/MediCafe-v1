@@ -197,17 +197,6 @@ deterministic executable tests and are not covered merely by the mappings above:
   projection/head/receipt/authorization/item/attempt/observation/outcome link;
 - forced concurrent archive head creation/successor races and batch order/replay
   conflict schedules.
-- archive work transition guards still permit a direct-SQL
-  `finished`/`blocked` to `leased` transition without a fresh generation, and an
-  expired pre-marker lease can be cleared to `finished` then revived with the
-  same owner/generation and a future expiry; resume by requiring every entry to
-  `leased` to originate at `pending` with an incremented fence and add a direct
-  SQL regression;
-- archive adapter send-response handling checks membership in the accepted
-  status set without first requiring a string, so a JSON array/object status can
-  raise `TypeError` instead of producing a bounded unknown result; resume with a
-  type check and malformed-response regression.
-
 The F4 PostgreSQL/process suite has not been executed locally. The branch must
-not be described as accepted or complete until these gaps are either supplied
-or explicitly waived by Astra and an exact-head fresh PostgreSQL run is green.
+not be described as accepted or complete until these required scenarios are
+implemented and an exact-head fresh PostgreSQL run is green.

@@ -152,16 +152,12 @@ accepted at this pause point. No later milestone, deployment, private-data work,
 live integration, production readiness, compliance evidence, backup
 qualification, or V0 authority transfer is implied.
 
-The final bounded static review also left two concrete implementation findings
-for resume. First, the archive work SQL guard permits direct
-`finished`/`blocked` to `leased` transitions without a fresh generation; an
-expired pre-marker lease can therefore be cleared to `finished` and revived
-with the same owner/fence and a later expiry. Every transition into `leased`
-must instead originate at `pending` and increment the fence, with a direct-SQL
-regression. Second, archive adapter send-response status must be type-checked
-before set membership: a JSON array/object currently risks an unbounded
-`TypeError` rather than a stable unknown result. These are open review findings,
-not accepted behavior.
+On the 2026-09-25 F4 resume, the two final bounded static-review findings were
+closed locally: every transition into `leased` must now originate at `pending`
+with a freshly incremented fence, and non-string archive send statuses now
+produce bounded `archive_response_invalid` unknown results. Focused direct-SQL
+and malformed-response regressions accompany the changes. PostgreSQL execution
+evidence remains pending with the broader acceptance scenarios below.
 
 Resume from this exact local workspace and ownership boundary:
 

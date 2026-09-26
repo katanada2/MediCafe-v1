@@ -135,7 +135,7 @@ class LoopbackArchiveAdapter:
         except (OSError, TimeoutError, urllib.error.URLError):
             return ArchiveTransportResult("unknown", "archive_transport_error")
         status = result.get("status")
-        if status not in {"stored", "replayed"}:
+        if not isinstance(status, str) or status not in {"stored", "replayed"}:
             return ArchiveTransportResult("unknown", "archive_response_invalid")
         return ArchiveTransportResult("accepted", "archive_target_response")
 
