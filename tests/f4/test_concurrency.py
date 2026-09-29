@@ -249,6 +249,58 @@ class DirectPostingConcurrencyTests(F4TransactionTestCase):
         )
         return revision, candidates, account, basis, observation
 
+    def _post_owner_command(self, *, candidate_id, barrier):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            try:
+                result = post_remittance(
+                    actor=self.alpha_user,
+                    organization_id=self.alpha.id,
+                    request_id=uuid.uuid4(),
+                    candidate_id=candidate_id,
+                    artifact_store=self.store,
+                )
+                return result.reason_code
+            except CommandError as exc:
+                return exc.reason_code
+        finally:
+            close_old_connections()
+
+    def test_distinct_owner_commands_compete_for_one_residual_balance(self):
+        revision, candidates, account, _basis, _observation = self._candidate_pair()
+        barrier = threading.Barrier(2)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [future.result(timeout=15) for future in (
+                pool.submit(
+                    self._post_owner_command,
+                    candidate_id=candidates[0].id,
+                    barrier=barrier,
+                ),
+                pool.submit(
+                    self._post_owner_command,
+                    candidate_id=candidates[1].id,
+                    barrier=barrier,
+                ),
+            )]
+
+        self.assertEqual(results.count("remittance_posted"), 1, results)
+        self.assertEqual(results.count("overallocated_line"), 1, results)
+        self.assertEqual(PostingEntry.objects.filter(account=account).count(), 1)
+        self.assertEqual(
+            sum(PostingEntry.objects.filter(account=account).values_list(
+                "amount", flat=True,
+            )),
+            Decimal("6.00"),
+        )
+        self.assertEqual(AcceptedEvent.objects.filter(
+            claim_revision=revision,
+        ).count(), 1)
+        self.assertEqual(OutcomesCommandReceipt.objects.filter(
+            target_candidate_id__in=[candidate.id for candidate in candidates],
+        ).count(), 1)
+
     def _insert_direct_posting(self, *, isolation, candidate_id, account_id,
                                basis_id, observation_id, barrier):
         close_old_connections()
@@ -426,11 +478,37 @@ class CapturePostingConcurrencyTests(F4TransactionTestCase):
         projection = ArchiveProjection.objects.get(id=captured.projection_id)
         payload = json.loads(bytes(projection.projection_bytes))
         self.assertEqual(payload["outcomes"]["events"], [])
+        self.assertEqual(payload["outcomes"]["entries"], [])
+        self.assertEqual(payload["outcomes"]["accounts"], [])
+        self.assertEqual(payload["outcomes"]["conflict_ids"], [])
         self.assertEqual(posted.reason_code, "remittance_posted")
         self.assertEqual(archive_current_lag(
             actor=self.alpha_user, organization_id=self.alpha.id,
             encounter_id=revision.encounter_id,
         ).state, "projection_lag")
+
+        successor = capture_archive_projection(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            encounter_id=revision.encounter_id,
+            expected_projection_id=projection.id,
+        )
+        successor_projection = ArchiveProjection.objects.get(id=successor.projection_id)
+        successor_payload = json.loads(bytes(successor_projection.projection_bytes))
+        outcomes = successor_payload["outcomes"]
+        self.assertEqual(len(outcomes["events"]), 1)
+        self.assertEqual(len(outcomes["entries"]), 2)
+        self.assertEqual(len(outcomes["accounts"]), 1)
+        self.assertEqual(outcomes["accounts"][0]["original_charge"], "10.00")
+        self.assertEqual(outcomes["accounts"][0]["payer_reported_credits"], "4.00")
+        self.assertEqual(outcomes["accounts"][0]["contractual_adjustments"], "1.00")
+        self.assertEqual(outcomes["accounts"][0]["residual"], "5.00")
+        self.assertEqual(archive_current_lag(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            encounter_id=revision.encounter_id,
+        ).state, "current")
 
     def test_concurrent_initial_capture_has_one_projection_and_no_partial_receipt(self):
         revision, _intent, _observation, _result = self.delivered_claim()

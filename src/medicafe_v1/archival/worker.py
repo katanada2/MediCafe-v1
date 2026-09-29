@@ -193,7 +193,9 @@ def _evidence_well_formed(evidence):
     ) else None
     return (
         isinstance(evidence.receiver_id, str)
+        and 1 <= len(evidence.receiver_id) <= 80
         and isinstance(evidence.receiver_version, str)
+        and 1 <= len(evidence.receiver_version) <= 20
         and isinstance(evidence.target_receipt_id, str)
         and 1 <= len(evidence.target_receipt_id) <= 100
         and isinstance(evidence.projection_version, int)
@@ -234,8 +236,8 @@ def _record_observation(*, projection, attempt, evidence):
     existing = ArchiveReadbackObservation.objects.filter(
         organization_id=projection.organization_id,
         lookup_projection=projection,
-        receiver_id=ARCHIVE_RECEIVER_ID,
-        receiver_version=ARCHIVE_RECEIVER_VERSION,
+        receiver_id=evidence.receiver_id,
+        receiver_version=evidence.receiver_version,
         target_receipt_id=evidence.target_receipt_id,
         evidence_fingerprint=fingerprint,
     ).first()
@@ -257,8 +259,8 @@ def _record_observation(*, projection, attempt, evidence):
         and observed_at is not None
     )
     receipt_reused = ArchiveReadbackObservation.objects.filter(
-        receiver_id=ARCHIVE_RECEIVER_ID,
-        receiver_version=ARCHIVE_RECEIVER_VERSION,
+        receiver_id=evidence.receiver_id,
+        receiver_version=evidence.receiver_version,
         target_receipt_id=evidence.target_receipt_id,
     ).exclude(evidence_fingerprint=fingerprint).exists()
     try:
@@ -267,8 +269,8 @@ def _record_observation(*, projection, attempt, evidence):
                 organization_id=projection.organization_id,
                 source_attempt=attempt, lookup_projection=projection,
                 reported_attempt_id=evidence.reported_attempt_id,
-                receiver_id=ARCHIVE_RECEIVER_ID,
-                receiver_version=ARCHIVE_RECEIVER_VERSION,
+                receiver_id=evidence.receiver_id,
+                receiver_version=evidence.receiver_version,
                 target_receipt_id=evidence.target_receipt_id,
                 reported_organization_id=evidence.organization_id,
                 reported_encounter_id=evidence.encounter_id,
@@ -294,8 +296,8 @@ def _record_observation(*, projection, attempt, evidence):
         observation = ArchiveReadbackObservation.objects.filter(
             organization_id=projection.organization_id,
             lookup_projection=projection,
-            receiver_id=ARCHIVE_RECEIVER_ID,
-            receiver_version=ARCHIVE_RECEIVER_VERSION,
+            receiver_id=evidence.receiver_id,
+            receiver_version=evidence.receiver_version,
             target_receipt_id=evidence.target_receipt_id,
             evidence_fingerprint=fingerprint,
         ).first()

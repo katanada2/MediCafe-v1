@@ -360,7 +360,8 @@ class ArchiveRelationshipMatrixTests(F4TransactionTestCase):
 
         first_projection = ArchiveProjection.objects.get(id=first.projection_id)
         # Create a valid successor for the first encounter by changing outcomes.
-        intent = first_projection.encounter.claim.current_revision.delivery_intents.first()
+        claim = first_projection.encounter.claims.get()
+        intent = claim.current_revision.delivery_intents.first()
         observation = intent.observations.filter(binding_valid=True).first()
         _delivery, lifecycle = self.admit_inbound(
             kind="lifecycle", intent=intent, observation=observation,

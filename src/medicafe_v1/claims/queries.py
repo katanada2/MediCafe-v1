@@ -182,7 +182,9 @@ def historical_delivery_attribution(
             Claim.objects.select_for_update(of=("self",)).get(
                 organization_id=organization_id, id=intent.claim_id
             )
-            intent = DeliveryIntent.objects.select_for_update(of=("self",)).select_related(
+            intent = DeliveryIntent.objects.select_for_update(
+                of=("self",), no_key=True,
+            ).select_related(
                 "claim", "claim_revision", "claim_approval"
             ).get(organization_id=organization_id, id=intent.id)
         except (Claim.DoesNotExist, DeliveryIntent.DoesNotExist) as exc:

@@ -229,6 +229,55 @@ class ArchiveFoundationTests(F4TransactionTestCase):
         self.assertEqual(observation.source_attempt_id, second.attempt_id)
         self.assertEqual(observation.reported_attempt_id, first.attempt_id)
 
+    def test_manual_one_attempt_grant_cannot_restart_automatic_budget(self):
+        captured = self.capture()
+        queue_archive_batch(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            projection_ids=[captured.projection_id],
+        )
+        adapter = MemoryArchiveAdapter(readback=False)
+        initial = [run_archive_worker_once(
+            worker_id=f"archive-initial-budget-{index}",
+            lease_seconds=2,
+            adapter=adapter,
+        ) for index in range(3)]
+        self.assertEqual(initial[-1].reason_code, "archive_not_observed")
+        retry = retry_archive_item(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            projection_id=captured.projection_id,
+            expected_attempt_id=initial[-1].attempt_id,
+        )
+        self.assertEqual(retry.reason_code, "archive_retry_scheduled")
+
+        manual = run_archive_worker_once(
+            worker_id="archive-manual-budget",
+            lease_seconds=2,
+            adapter=adapter,
+        )
+        no_fifth = run_archive_worker_once(
+            worker_id="archive-no-fifth-attempt",
+            lease_seconds=2,
+            adapter=adapter,
+        )
+
+        work = ArchiveWork.objects.get(projection_id=captured.projection_id)
+        self.assertEqual(manual.reason_code, "archive_not_observed")
+        self.assertEqual(no_fifth.reason_code, "no_archive_work")
+        self.assertEqual(work.attempts.count(), 4)
+        self.assertEqual(work.scheduled_authorization.kind, "manual_retry")
+        self.assertEqual(work.scheduled_authorization.allowed_attempts, 1)
+        self.assertEqual(work.scheduled_authorization.attempts.count(), 1)
+        self.assertEqual(work.state, ArchiveWork.STATE_FINISHED)
+        self.assertEqual(archive_item_status(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            projection_id=captured.projection_id,
+        ).state, "unknown_possible_write")
+
     def test_independent_confirmation_prevents_retry_of_immutable_unknown(self):
         captured = self.capture()
         queue_archive_batch(

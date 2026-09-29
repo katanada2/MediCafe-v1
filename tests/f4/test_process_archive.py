@@ -10,7 +10,9 @@ from unittest.mock import patch
 import psycopg
 from psycopg import sql
 
-from medicafe_v1.archival.commands import capture_archive_projection, queue_archive_batch
+from medicafe_v1.archival.commands import (
+    capture_archive_projection, queue_archive_batch, retry_archive_item,
+)
 from medicafe_v1.archival.adapter import (
     ArchiveTransportResult,
     LoopbackArchiveAdapter,
@@ -96,7 +98,7 @@ class ArchiveProcessTests(F4TransactionTestCase):
             observed_state=ArchiveReadbackObservation.STATE_VERIFIED,
         ).count(), 1)
 
-    def test_committed_write_with_dropped_response_reconciles_after_target_restart(self):
+    def test_committed_write_with_dropped_response_retries_same_key_after_restart(self):
         class DroppedResponseAdapter(LoopbackArchiveAdapter):
             def send(self, frozen):
                 committed = super().send(frozen)
@@ -130,26 +132,60 @@ class ArchiveProcessTests(F4TransactionTestCase):
 
         self.target.stop()
         self.target.start()
-        reconciled = reconcile_archive_item(
+        for index in range(2):
+            later = run_archive_worker_once(
+                worker_id=f"dropped-response-repeat-{index}",
+                lease_seconds=2,
+                adapter=DroppedResponseAdapter(
+                    timeout=0.5,
+                    endpoint=self.target.endpoint,
+                ),
+            )
+        self.assertEqual(later.reason_code, "archive_response_dropped")
+        retry = retry_archive_item(
             actor=self.alpha_user,
             organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
             projection_id=captured.projection_id,
+            expected_attempt_id=later.attempt_id,
+        )
+        self.assertEqual(retry.reason_code, "archive_retry_scheduled")
+
+        self.target.stop()
+        self.target.start()
+        confirmed = run_archive_worker_once(
+            worker_id="dropped-response-manual-retry",
+            lease_seconds=2,
             adapter=LoopbackArchiveAdapter(
                 timeout=0.5,
                 endpoint=self.target.endpoint,
             ),
         )
 
-        self.assertEqual(reconciled.reason_code, "archive_item_confirmed")
+        self.assertEqual(confirmed.reason_code, "archive_item_confirmed")
         self.assertEqual(archive_item_status(
             actor=self.alpha_user,
             organization_id=self.alpha.id,
             projection_id=captured.projection_id,
         ).state, "historically_confirmed")
         observation = ArchiveReadbackObservation.objects.get(
-            id=reconciled.observation_id,
+            id=confirmed.observation_id,
         )
         self.assertEqual(observation.reported_attempt_id, uncertain.attempt_id)
+        projection = ArchiveProjection.objects.get(id=captured.projection_id)
+        with psycopg.connect(**postgres_kwargs()) as conn, conn.cursor() as cursor:
+            cursor.execute(sql.SQL("""
+                SELECT count(*) OVER (),target_receipt_id,attempt_id::text,
+                       projection_digest,byte_length,received_bytes
+                  FROM {}.archive_projection WHERE projection_id=%s
+            """).format(sql.Identifier(self.target.schema)), [projection.id])
+            stored = cursor.fetchone()
+        self.assertEqual(stored[0], 1)
+        self.assertEqual(stored[1], observation.target_receipt_id)
+        self.assertEqual(stored[2], str(uncertain.attempt_id))
+        self.assertEqual(stored[3], projection.projection_digest)
+        self.assertEqual(stored[4], projection.byte_length)
+        self.assertEqual(bytes(stored[5]), bytes(projection.projection_bytes))
         self.assertTrue(ArchiveAttemptOutcome.objects.filter(
             attempt_id=uncertain.attempt_id,
             kind=ArchiveAttemptOutcome.UNKNOWN,

@@ -4,11 +4,14 @@ import json
 import uuid
 from decimal import Decimal
 
+from django.utils import timezone
+
 from medicafe_v1.claims.commands import (
     approve_claim_revision,
     prepare_claim_revision,
 )
-from medicafe_v1.claims.delivery_commands import request_delivery
+from medicafe_v1.claims.delivery_adapter import ReceiverEvidence
+from medicafe_v1.claims.delivery_commands import reconcile_delivery, request_delivery
 from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
 from medicafe_v1.claims.models import ClaimApproval, ClaimRevision, DeliveryIntent, ReceiverObservation
 from medicafe_v1.outcomes.commands import (
@@ -142,6 +145,12 @@ class F4AcceptanceMatrixTests(F4TestCase):
         omitted = dict(base)
         omitted.pop("lines")
         invalid.append(omitted)
+        reversal = dict(base)
+        reversal["kind"] = "reversal"
+        invalid.append(reversal)
+        refund = json.loads(json.dumps(base))
+        refund["lines"][0]["refund_amount"] = "1.00"
+        invalid.append(refund)
 
         for index, value in enumerate(invalid):
             with self.subTest(index=index):
@@ -320,11 +329,6 @@ class F4AcceptanceMatrixTests(F4TestCase):
 
         for field, replacement, reason in (
             ("sender_id", "synthetic-sender-v2", "unmatched_target"),
-            (
-                "receiver_receipt_id",
-                f"missing-{uuid.uuid4()}",
-                "pending_delivery_evidence",
-            ),
         ):
             _case_revision, case_intent, case_observation, _case_result = (
                 self.delivered_claim()
@@ -354,6 +358,84 @@ class F4AcceptanceMatrixTests(F4TestCase):
                 artifact_store=self.store,
             )
             self.assertIn(reason, reevaluated.current_blockers)
+
+        _pending_revision, pending_intent, pending_observation, _pending_result = (
+            self.delivered_claim()
+        )
+        pending_receipt = f"synthetic-late-{uuid.uuid4()}"
+        pending_value = json.loads(self.inbound_document(
+            kind="lifecycle",
+            intent=pending_intent,
+            observation=pending_observation,
+        ))
+        pending_value["receiver_receipt_id"] = pending_receipt
+        _delivery, pending = self._admit_value(
+            pending_value,
+            namespace="synthetic-lifecycle",
+        )
+        with self.assertRaisesMessage(CommandError, "pending_delivery_evidence"):
+            accept_lifecycle(
+                actor=self.alpha_user,
+                organization_id=self.alpha.id,
+                request_id=uuid.uuid4(),
+                candidate_id=pending.candidate_id,
+                artifact_store=self.store,
+            )
+        before_readback = reevaluate_candidate(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            candidate_id=pending.candidate_id,
+            artifact_store=self.store,
+        )
+        self.assertIn("pending_delivery_evidence", before_readback.current_blockers)
+
+        class MatchingReadbackAdapter:
+            def readback(_self, frozen):
+                return ReceiverEvidence(
+                    state="accepted",
+                    receiver_id=frozen.receiver_id,
+                    receiver_version=frozen.receiver_version,
+                    organization_id=frozen.organization_id,
+                    intent_id=frozen.intent_id,
+                    claim_revision_id=frozen.claim_revision_id,
+                    delivery_key=frozen.delivery_key,
+                    receipt_id=pending_receipt,
+                    reported_attempt_id=frozen.attempt_id,
+                    envelope_digest=frozen.envelope_digest,
+                    byte_length=frozen.byte_length,
+                    received_bytes=frozen.payload,
+                    no_acceptance_guaranteed=False,
+                    observed_at=timezone.now().isoformat(),
+                )
+
+        reconciled = reconcile_delivery(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            intent_id=pending_intent.id,
+            adapter=MatchingReadbackAdapter(),
+        )
+        self.assertEqual(reconciled.reason_code, "receiver_evidence_recorded")
+        after_readback = reevaluate_candidate(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            candidate_id=pending.candidate_id,
+            artifact_store=self.store,
+        )
+        self.assertEqual(after_readback.current_blockers, ("unaccepted",))
+        self.assertFalse(AcceptedEvent.objects.filter(
+            primary_candidate_id=pending.candidate_id,
+        ).exists())
+        accepted_pending = accept_lifecycle(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            candidate_id=pending.candidate_id,
+            artifact_store=self.store,
+        )
+        self.assertTrue(AcceptedEvent.objects.filter(
+            id=accepted_pending.event_id,
+            primary_candidate_id=pending.candidate_id,
+        ).exists())
 
         _line_revision, line_intent, line_observation, _line_result = (
             self.delivered_claim()
@@ -422,11 +504,14 @@ class F4AcceptanceMatrixTests(F4TestCase):
                 candidate_id=second.candidate_id,
                 artifact_store=self.store,
             )
-        _first_delivery, first = self.admit_inbound(
-            kind="lifecycle",
-            intent=intent,
-            observation=observation,
+        first_value = json.loads(self.inbound_document(
+            kind="lifecycle", intent=intent, observation=observation,
             event_id=first_event_id,
+        ))
+        first_value["status"] = "ACK_REJECTED"
+        _first_delivery, first = self._admit_value(
+            first_value,
+            namespace="synthetic-lifecycle",
         )
         accept_lifecycle(
             actor=self.alpha_user,
@@ -442,13 +527,18 @@ class F4AcceptanceMatrixTests(F4TestCase):
             candidate_id=second.candidate_id,
             artifact_store=self.store,
         )
+        lifecycle = current_lifecycle(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            intent_id=intent.id,
+        )
         self.assertEqual(
-            [item.lifecycle_sequence for item in current_lifecycle(
-                actor=self.alpha_user,
-                organization_id=self.alpha.id,
-                intent_id=intent.id,
-            )],
+            [item.lifecycle_sequence for item in lifecycle],
             [1, 2],
+        )
+        self.assertEqual(
+            [item.lifecycle_status for item in lifecycle],
+            ["ACK_REJECTED", "ACK_ACCEPTED"],
         )
         conflict_bytes = self.inbound_document(
             kind="lifecycle",
@@ -481,7 +571,7 @@ class F4AcceptanceMatrixTests(F4TestCase):
             observation=observation,
             lines=[{
                 "line_ordinal": 1,
-                "paid_amount": "6.00",
+                "paid_amount": "5.00",
                 "contractual_adjustment": "0.00",
             }],
         )
@@ -499,8 +589,8 @@ class F4AcceptanceMatrixTests(F4TestCase):
             lines=[
                 {
                     "line_ordinal": 1,
-                    "paid_amount": "0.00",
-                    "contractual_adjustment": "0.50",
+                    "paid_amount": "1.00",
+                    "contractual_adjustment": "0.00",
                 },
                 {
                     "line_ordinal": 2,
@@ -523,9 +613,9 @@ class F4AcceptanceMatrixTests(F4TestCase):
             claim_revision_id=revision.id,
         )
         self.assertEqual(view.original_charge, Decimal("10.00"))
-        self.assertEqual(view.payer_reported_credits, Decimal("6.00"))
+        self.assertEqual(view.payer_reported_credits, Decimal("5.00"))
         self.assertEqual(view.contractual_adjustments, Decimal("0.00"))
-        self.assertEqual(view.residual, Decimal("4.00"))
+        self.assertEqual(view.residual, Decimal("5.00"))
         self.assertEqual(PostingEntry.objects.count(), 1)
         self.assertFalse(AcceptedEvent.objects.filter(
             primary_candidate_id=bad.candidate_id,
@@ -535,11 +625,18 @@ class F4AcceptanceMatrixTests(F4TestCase):
             kind="remittance",
             intent=intent,
             observation=observation,
-            lines=[{
-                "line_ordinal": 2,
-                "paid_amount": "0.00",
-                "contractual_adjustment": "4.00",
-            }],
+            lines=[
+                {
+                    "line_ordinal": 1,
+                    "paid_amount": "0.00",
+                    "contractual_adjustment": "1.00",
+                },
+                {
+                    "line_ordinal": 2,
+                    "paid_amount": "0.00",
+                    "contractual_adjustment": "4.00",
+                },
+            ],
         )
         post_remittance(
             actor=self.alpha_user,
@@ -553,10 +650,10 @@ class F4AcceptanceMatrixTests(F4TestCase):
             organization_id=self.alpha.id,
             claim_revision_id=revision.id,
         )
-        self.assertEqual(final.payer_reported_credits, Decimal("6.00"))
-        self.assertEqual(final.contractual_adjustments, Decimal("4.00"))
+        self.assertEqual(final.payer_reported_credits, Decimal("5.00"))
+        self.assertEqual(final.contractual_adjustments, Decimal("5.00"))
         self.assertEqual(final.residual, Decimal("0.00"))
-        self.assertEqual(PostingEntry.objects.count(), 2)
+        self.assertEqual(PostingEntry.objects.count(), 3)
         self.assertFalse(hasattr(view, "patient_liability"))
         self.assertFalse(hasattr(view, "cash_settlement"))
 

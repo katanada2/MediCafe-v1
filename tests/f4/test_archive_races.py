@@ -41,7 +41,9 @@ class EvidenceVariantAdapter(MemoryArchiveAdapter):
         evidence = super().readback(frozen)
         if self.variant == "receiver":
             return replace(evidence, receiver_id="wrong-archive")
-        if self.variant == "version":
+        if self.variant == "receiver_version":
+            return replace(evidence, receiver_version="wrong-version")
+        if self.variant == "projection_version":
             return replace(evidence, projection_version=evidence.projection_version + 1)
         if self.variant == "bytes":
             changed = evidence.received_bytes + b"x"
@@ -216,7 +218,9 @@ class ArchiveReplayAndEvidenceTests(F4TransactionTestCase):
         )]
         self.assertEqual(states, ["historically_confirmed", "unknown_possible_write"])
 
-        for variant in ("receiver", "version", "bytes"):
+        for variant in (
+            "receiver", "receiver_version", "projection_version", "bytes",
+        ):
             with self.subTest(variant=variant):
                 captured = self._capture()
                 queue_archive_batch(
