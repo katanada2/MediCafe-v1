@@ -215,7 +215,7 @@ production repairs; its only failure was the retry form being conditionally
 hidden on an error before any attempt existed. Exact candidate
 `7e7bfebf34ec7109dc51fdeab0556339d616e3d3` retains the bound form and passed
 [run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027):
-all 225 F1–F4 tests, including all 76 F4 PostgreSQL/process tests, plus fresh
+all 225 F1–F4 tests, including 76 F4 tests, plus fresh
 migrations, Django checks and migration-drift verification in 254.325 seconds.
 Astra accepts this reviewed public-synthetic implementation for governed merge.
 No local PostgreSQL retry is planned. Synthetic F4 milestone acceptance remains

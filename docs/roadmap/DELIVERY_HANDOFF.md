@@ -6,8 +6,8 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 ## Current state and entry gates
 
-- F4 final candidate [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10)
-  is open at exact runtime head
+- At the 2026-09-29 premerge checkpoint, F4 final candidate
+  [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10) was open at exact runtime head
   `7e7bfebf34ec7109dc51fdeab0556339d616e3d3` on
   `codex/f4-outcomes-archive`. Astra accepts the reviewed public-synthetic F4
   implementation for governed merge based on the exact-head evidence below;
@@ -34,8 +34,8 @@ and redaction; coherent projection snapshots and head races; independent archive
 readback; bounded retries/fences; and partial/outage recovery. Source review is
 complete. [PostgreSQL run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
 passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift
-verification and all 225 F1–F4 tests, including all 76 F4 PostgreSQL/process
-tests, in 254.325 seconds at exact runtime head
+verification and all 225 F1–F4 tests, including 76 F4 tests, in 254.325 seconds
+at exact runtime head
 `7e7bfebf34ec7109dc51fdeab0556339d616e3d3`.
 
 The locked verification stack is Python 3.13.15, Django 5.2.17, psycopg 3.2.13,
@@ -143,7 +143,7 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 ## Associated PR history
 
 - [F4 implementation PR #10](https://github.com/katanada2/MediCafe-v1/pull/10):
-  open accepted-for-merge candidate at
+  at the 2026-09-29 premerge checkpoint, open accepted-for-merge candidate at
   `7e7bfebf34ec7109dc51fdeab0556339d616e3d3`; green exact-head
   [run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
   passed 225 tests in 254.325 seconds. Synthetic F4 milestone acceptance remains

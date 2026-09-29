@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 has accepted synthetic intake/identity (F1), service/claim approval (F2), and durable synthetic delivery with explicit uncertainty (F3). The verified public-synthetic F4 candidate is accepted for governed merge through open PR #10; milestone acceptance remains conditional on merge. Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has accepted synthetic intake/identity (F1), service/claim approval (F2), and durable synthetic delivery with explicit uncertainty (F3). The reviewed F4 implementation is accepted for governed merge through PR #10. Main containing that merge completes the public-synthetic F1–F4 foundation. Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 has reviewed exact-head evidence and is accepted for PR #10 merge; merged milestone status remains gated on that governed merge.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 has reviewed exact-head evidence and is accepted for governed merge through PR #10. Main containing that merge completes the public-synthetic F1–F4 foundation.
 
 ## Milestones
 
