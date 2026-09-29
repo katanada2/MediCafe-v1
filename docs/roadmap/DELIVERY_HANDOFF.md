@@ -6,10 +6,55 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 ## Current state and entry gates
 
+- F4 final candidate [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10)
+  is open at exact runtime head
+  `7e7bfebf34ec7109dc51fdeab0556339d616e3d3` on
+  `codex/f4-outcomes-archive`. Astra accepts the reviewed public-synthetic F4
+  implementation for governed merge based on the exact-head evidence below;
+  PR #10 is not yet merged. This current checkpoint supersedes the resume,
+  no-export and no-PR
+  instructions in the historical F4 pause sections below; those sections remain
+  as dated evidence of earlier state. Synthetic F4 milestone acceptance remains
+  conditional on merging PR #10 through normal repository protections.
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
 - Astra accepted F2 on 2026-09-22 and merged [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6) at `87526383052ebb68395fe1fe14f26f901bd5c952`. Its bounded service/claim authority is synthetic only.
 - F3 is accepted and merged through PR #8 at `0033e5c892a40535fb06200432cb62e68cfba69b`; final evidence is recorded below. F4 implementation is admitted only from main containing the merged [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md). An unmerged branch is not authorization. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
+
+## F4 final candidate and remaining qualification
+
+The accepted-for-merge candidate implements the complete public-synthetic F4
+card and maps
+all twelve acceptance groups in the [F4 matrix](F4_IMPLEMENTATION_MATRIX.md):
+strict inbound parsing and attribution; replay/conflict namespaces; historical
+delivery evidence and receipt-anchor ordering; lifecycle correction sequences;
+conserved multi-line and concurrent posting; bounded financial semantics;
+relationship, authorization, CSRF and form-retention guards; restart durability
+and redaction; coherent projection snapshots and head races; independent archive
+readback; bounded retries/fences; and partial/outage recovery. Source review is
+complete. [PostgreSQL run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
+passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift
+verification and all 225 F1–F4 tests, including all 76 F4 PostgreSQL/process
+tests, in 254.325 seconds at exact runtime head
+`7e7bfebf34ec7109dc51fdeab0556339d616e3d3`.
+
+The locked verification stack is Python 3.13.15, Django 5.2.17, psycopg 3.2.13,
+PostgreSQL 17 and uv 0.12.13. Earlier diagnostic runs remain useful evidence:
+run `36614797914` executed 224 tests in 255.335 seconds and passed both production
+repairs, with only the now-fixed hidden bound retry form; run `36615037902`
+executed 225 tests in 253.590 seconds and additionally passed the controlled
+claims-reconciliation/capture interleaving, again with only that known form
+failure. Neither failed run is acceptance evidence.
+
+Still unrun are a manual browser walkthrough, local PostgreSQL execution and all
+private/deployed qualification. Public-synthetic acceptance does not establish
+real transport or payer schemas; correction, reversal or coordination-of-benefit
+semantics; opening balances; pricing or coverage policy; patient responsibility
+or communications; cash/deposit reconciliation; Medisoft mapping; scheduling or
+retention policy; identity-correction breadth; qualified recovery; deployment;
+or private migration qualification. These remain explicit future product and
+qualification gaps. No later milestone work, live integration, private data,
+production readiness, compliance claim or V0 authority transfer is included.
 
 ## F1 acceptance evidence
 
@@ -97,7 +142,16 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
-- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): at the 2026-09-22 evidence checkpoint, ready for review and unmerged; runtime implementation/evidence accepted at `8b42173315b0b042a4aa718d10dd6c0175ac088a` with green run `35715327434` (143 tests in 142.246 seconds). Earlier diagnostic and green history is retained in the F3 matrix; follow the link for current PR state.
+- [F4 implementation PR #10](https://github.com/katanada2/MediCafe-v1/pull/10):
+  open accepted-for-merge candidate at
+  `7e7bfebf34ec7109dc51fdeab0556339d616e3d3`; green exact-head
+  [run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
+  passed 225 tests in 254.325 seconds. Synthetic F4 milestone acceptance remains
+  conditional on governed merge.
+- [F4 admission PR #9](https://github.com/katanada2/MediCafe-v1/pull/9):
+  verified merged at `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`; admitted the bounded
+  public-synthetic F4 implementation without establishing completion.
+- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): accepted and verified merged at `0033e5c892a40535fb06200432cb62e68cfba69b`; final implementation head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4` passed green run `35719081505` (149 tests in 147.898 seconds). Earlier diagnostic and green history is retained in the F3 matrix.
 - [F3 admission PR #7](https://github.com/katanada2/MediCafe-v1/pull/7): verified merged 2026-09-22 at `07bad8f39a631ced75b1f5df829c3a6cbb84d09e`; admits the public-synthetic F3 implementation assignment above without admitting F4.
 - [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): accepted and verified merged 2026-09-22 at `87526383052ebb68395fe1fe14f26f901bd5c952`; implementation and final-head evidence above.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.

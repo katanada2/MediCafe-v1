@@ -199,8 +199,8 @@ unavailable; `git diff --check` passed; and
 before collection because `src` was not on `PYTHONPATH`; the configured Django
 runner then executed the test successfully.
 
-The user authorized the full public-synthetic GitHub workflow and PR #10 now
-tracks this packet. Its first 218-test PostgreSQL 17 run failed because an F3
+The user authorized the full public-synthetic GitHub workflow and PR #10 tracks
+this packet. Its first 218-test PostgreSQL 17 run failed because an F3
 migration regression cleanup restored only the claims leaf and left the F4
 outcomes/archive schema unapplied; no distinct product failure appeared in that
 log. Commit `00abc66` restores and verifies the original full leaf set. Its
@@ -209,7 +209,15 @@ cycle, a relationship-test reverse-accessor typo, and wrong-receiver evidence
 laundering caused by persisting the configured tuple instead of the reported
 tuple. This local packet applies the bounded `NO KEY UPDATE` intent lock repair,
 fixes the accessor, preserves the actual bounded evidence tuple, and adds the
-76-test F4 coverage described above; the final controlled-evidence addition has not yet been exercised by
-PostgreSQL CI. No local PostgreSQL retry is planned. Acceptance still requires a
-green exact final head and Astra review; authorization and an open PR do not
-constitute milestone acceptance.
+76-test F4 coverage described above. Run `36615037902` executed 225 tests in
+253.590 seconds and passed the final controlled-evidence interleaving plus all
+production repairs; its only failure was the retry form being conditionally
+hidden on an error before any attempt existed. Exact candidate
+`7e7bfebf34ec7109dc51fdeab0556339d616e3d3` retains the bound form and passed
+[run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027):
+all 225 F1–F4 tests, including all 76 F4 PostgreSQL/process tests, plus fresh
+migrations, Django checks and migration-drift verification in 254.325 seconds.
+Astra accepts this reviewed public-synthetic implementation for governed merge.
+No local PostgreSQL retry is planned. Synthetic F4 milestone acceptance remains
+conditional on merge of PR #10; an accepted candidate and open PR do not claim
+that merge already occurred.
