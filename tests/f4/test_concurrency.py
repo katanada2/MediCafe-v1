@@ -15,7 +15,10 @@ from django.utils import timezone
 from medicafe_v1.archival.commands import capture_archive_projection
 from medicafe_v1.archival.models import ArchiveCommandReceipt, ArchiveProjection
 from medicafe_v1.archival.queries import archive_current_lag
-from medicafe_v1.claims.models import ReceiverObservation
+from medicafe_v1.claims.delivery_adapter import ReceiverEvidence, TransportResult
+from medicafe_v1.claims.delivery_commands import reconcile_delivery, request_delivery
+from medicafe_v1.claims.delivery_worker import run_delivery_worker_once
+from medicafe_v1.claims.models import DeliveryIntent, ReceiverObservation
 from medicafe_v1.outcomes.commands import accept_lifecycle, post_remittance
 from medicafe_v1.outcomes.models import (
     AcceptedEvent, AcceptedEventEvidence, ChargeBasis, FinancialAccount,
@@ -504,6 +507,146 @@ class CapturePostingConcurrencyTests(F4TransactionTestCase):
         self.assertEqual(outcomes["accounts"][0]["payer_reported_credits"], "4.00")
         self.assertEqual(outcomes["accounts"][0]["contractual_adjustments"], "1.00")
         self.assertEqual(outcomes["accounts"][0]["residual"], "5.00")
+        self.assertEqual(archive_current_lag(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            encounter_id=revision.encounter_id,
+        ).state, "current_projection")
+
+    def test_capture_snapshot_excludes_reconciliation_committed_between_owner_reads(self):
+        class UnknownTransportAdapter:
+            timeout = 0.1
+
+            def validate_configuration(_self, receiver_id, version):
+                return None
+
+            def send(_self, frozen, *, test_mode=None):
+                return TransportResult("unknown", "response_lost")
+
+        receipt_id = f"capture-race-{uuid.uuid4()}"
+
+        class AcceptedReadbackAdapter:
+            def readback(_self, frozen):
+                return ReceiverEvidence(
+                    state="accepted",
+                    receiver_id=frozen.receiver_id,
+                    receiver_version=frozen.receiver_version,
+                    organization_id=frozen.organization_id,
+                    intent_id=frozen.intent_id,
+                    claim_revision_id=frozen.claim_revision_id,
+                    delivery_key=frozen.delivery_key,
+                    receipt_id=receipt_id,
+                    reported_attempt_id=frozen.attempt_id,
+                    envelope_digest=frozen.envelope_digest,
+                    byte_length=frozen.byte_length,
+                    received_bytes=frozen.payload,
+                    no_acceptance_guaranteed=False,
+                    observed_at=timezone.now().isoformat(),
+                )
+
+        _claim, revision, _approval = self.approved_claim()
+        requested = request_delivery(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            claim_revision_id=revision.id,
+            expected_envelope_digest=revision.envelope_digest,
+        )
+        unknown = run_delivery_worker_once(
+            worker_id="capture-reconciliation-unknown",
+            lease_seconds=2,
+            adapter=UnknownTransportAdapter(),
+        )
+        self.assertEqual(unknown.reason_code, "dispatch_outcome_unknown")
+        intent = DeliveryIntent.objects.get(id=requested.intent_id)
+        records_read = threading.Event()
+        release_capture = threading.Event()
+
+        from medicafe_v1.archival import commands as archive_commands
+
+        real_records_snapshot = archive_commands.archive_encounter_snapshot
+
+        def paused_records_snapshot(*args, **kwargs):
+            result = real_records_snapshot(*args, **kwargs)
+            records_read.set()
+            self.assertTrue(release_capture.wait(timeout=10))
+            return result
+
+        def capture():
+            close_old_connections()
+            try:
+                with patch.object(
+                    archive_commands,
+                    "archive_encounter_snapshot",
+                    paused_records_snapshot,
+                ):
+                    return capture_archive_projection(
+                        actor=self.alpha_user,
+                        organization_id=self.alpha.id,
+                        request_id=uuid.uuid4(),
+                        encounter_id=revision.encounter_id,
+                        expected_projection_id=None,
+                    )
+            finally:
+                close_old_connections()
+
+        def reconcile():
+            close_old_connections()
+            try:
+                return reconcile_delivery(
+                    actor=self.alpha_user,
+                    organization_id=self.alpha.id,
+                    intent_id=intent.id,
+                    adapter=AcceptedReadbackAdapter(),
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            capture_future = pool.submit(capture)
+            self.assertTrue(records_read.wait(timeout=5))
+            reconcile_future = pool.submit(reconcile)
+            try:
+                reconciled = reconcile_future.result(timeout=5)
+            finally:
+                release_capture.set()
+            captured = capture_future.result(timeout=10)
+
+        self.assertEqual(reconciled.reason_code, "receiver_evidence_recorded")
+        observation = ReceiverObservation.objects.get(
+            intent=intent,
+            receipt_id=receipt_id,
+            observed_state=ReceiverObservation.STATE_ACCEPTED,
+            binding_valid=True,
+        )
+        projection = ArchiveProjection.objects.get(id=captured.projection_id)
+        before = json.loads(bytes(projection.projection_bytes))
+        self.assertEqual(before["claims"]["deliveries"], [])
+        self.assertEqual(archive_current_lag(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            encounter_id=revision.encounter_id,
+        ).state, "projection_lag")
+
+        successor = capture_archive_projection(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            request_id=uuid.uuid4(),
+            encounter_id=revision.encounter_id,
+            expected_projection_id=projection.id,
+        )
+        after = json.loads(bytes(ArchiveProjection.objects.get(
+            id=successor.projection_id,
+        ).projection_bytes))
+        self.assertEqual(after["claims"]["deliveries"], [{
+            "claim_revision_id": str(revision.id),
+            "delivery_key": str(intent.delivery_key),
+            "evidence_fingerprint": observation.evidence_fingerprint,
+            "intent_id": str(intent.id),
+            "observation_id": str(observation.id),
+            "receipt_id": receipt_id,
+            "receiver_version": intent.receiver_version,
+        }])
         self.assertEqual(archive_current_lag(
             actor=self.alpha_user,
             organization_id=self.alpha.id,
