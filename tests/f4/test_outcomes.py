@@ -286,8 +286,19 @@ class OutcomesSqlRelationshipTests(F4TransactionTestCase):
         candidate = InboundCandidate.objects.get(id=interpreted.candidate_id)
         normalized = dict(candidate.normalized_content)
         normalized["lifecycle_sequence"] = 0
+        InboundAttempt.objects.create(
+            organization=self.alpha,
+            delivery=candidate.delivery,
+            interpreter_version="direct-sequence-zero",
+            started_at=timezone.now(),
+            ended_at=timezone.now(),
+            succeeded=True,
+            reason_code="interpretation_succeeded",
+        )
 
-        with self.assertRaises(DatabaseError), transaction.atomic():
+        with self.assertRaisesMessage(
+            DatabaseError, "out_candidate_lifecycle_sequence_ck",
+        ), transaction.atomic():
             InboundCandidate.objects.create(
                 organization=self.alpha, delivery=candidate.delivery,
                 interpreter_version="direct-sequence-zero",

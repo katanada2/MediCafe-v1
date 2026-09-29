@@ -210,7 +210,7 @@ named by the review skill are not integrated yet in this repository. Concrete
 outcome/archive tests use `tests/helpers/workflow_boundary_contract.py`, and the
 matrix does not present registry-backed selection as evidence.
 
-All 69 F4 PostgreSQL/process tests and the complete F1–F4 regression suite
+All 70 F4 PostgreSQL/process tests and the complete F1–F4 regression suite
 remain unrun, as does fresh exact-head PostgreSQL 17 CI. Therefore this is a
 reviewable local source/evidence checkpoint, not F4 acceptance, production
 readiness, compliance evidence, live integration, private-data qualification,

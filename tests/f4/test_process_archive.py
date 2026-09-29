@@ -11,12 +11,21 @@ import psycopg
 from psycopg import sql
 
 from medicafe_v1.archival.commands import capture_archive_projection, queue_archive_batch
-from medicafe_v1.archival.models import ArchiveProjection, ArchiveReadbackObservation
+from medicafe_v1.archival.adapter import (
+    ArchiveTransportResult,
+    LoopbackArchiveAdapter,
+)
+from medicafe_v1.archival.models import (
+    ArchiveAttemptOutcome,
+    ArchiveProjection,
+    ArchiveReadbackObservation,
+)
 from medicafe_v1.archival.queries import (
     archive_batch_status,
     archive_current_lag,
     archive_item_status,
 )
+from medicafe_v1.archival.worker import reconcile_archive_item, run_archive_worker_once
 from medicafe_v1.claims.commands import prepare_claim_revision
 from medicafe_v1.claims.queries import claim_detail
 from medicafe_v1.outcomes.commands import post_remittance
@@ -86,6 +95,65 @@ class ArchiveProcessTests(F4TransactionTestCase):
             lookup_projection=projection,
             observed_state=ArchiveReadbackObservation.STATE_VERIFIED,
         ).count(), 1)
+
+    def test_committed_write_with_dropped_response_reconciles_after_target_restart(self):
+        class DroppedResponseAdapter(LoopbackArchiveAdapter):
+            def send(self, frozen):
+                committed = super().send(frozen)
+                if committed.status != "accepted":
+                    return committed
+                return ArchiveTransportResult("unknown", "archive_response_dropped")
+
+        _intent, _observation, captured = self._queued()
+        self.target.start()
+        adapter = DroppedResponseAdapter(
+            timeout=0.5,
+            endpoint=self.target.endpoint,
+        )
+
+        uncertain = run_archive_worker_once(
+            worker_id="dropped-response-worker",
+            lease_seconds=2,
+            adapter=adapter,
+        )
+
+        self.assertEqual(uncertain.reason_code, "archive_retry_pending")
+        self.assertTrue(ArchiveAttemptOutcome.objects.filter(
+            attempt_id=uncertain.attempt_id,
+            kind=ArchiveAttemptOutcome.UNKNOWN,
+            reason="archive_response_dropped",
+        ).exists())
+        self.assertFalse(ArchiveReadbackObservation.objects.filter(
+            lookup_projection_id=captured.projection_id,
+            observed_state=ArchiveReadbackObservation.STATE_VERIFIED,
+        ).exists())
+
+        self.target.stop()
+        self.target.start()
+        reconciled = reconcile_archive_item(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            projection_id=captured.projection_id,
+            adapter=LoopbackArchiveAdapter(
+                timeout=0.5,
+                endpoint=self.target.endpoint,
+            ),
+        )
+
+        self.assertEqual(reconciled.reason_code, "archive_item_confirmed")
+        self.assertEqual(archive_item_status(
+            actor=self.alpha_user,
+            organization_id=self.alpha.id,
+            projection_id=captured.projection_id,
+        ).state, "historically_confirmed")
+        observation = ArchiveReadbackObservation.objects.get(
+            id=reconciled.observation_id,
+        )
+        self.assertEqual(observation.reported_attempt_id, uncertain.attempt_id)
+        self.assertTrue(ArchiveAttemptOutcome.objects.filter(
+            attempt_id=uncertain.attempt_id,
+            kind=ArchiveAttemptOutcome.UNKNOWN,
+        ).exists())
 
     def test_archive_outage_does_not_block_canonical_remittance_and_later_recovers(self):
         intent, observation, captured = self._queued()

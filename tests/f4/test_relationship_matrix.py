@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from datetime import timedelta
 
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
@@ -136,9 +137,12 @@ class OutcomesRelationshipMatrixTests(F4TransactionTestCase):
             request_id=uuid.uuid4(), candidate_id=other_candidate.candidate_id,
             artifact_store=self.store,
         )
+        wrong_stream_event_id = AcceptedEvent.objects.get(
+            id=other_event.event_id,
+        ).event_id
         _second_delivery, second = self.admit_inbound(
             kind="lifecycle", intent=intent, observation=observation,
-            sequence=2, predecessor_event_id=other_event.event_id,
+            sequence=2, predecessor_event_id=wrong_stream_event_id,
         )
         candidate = InboundCandidate.objects.get(id=second.candidate_id)
         with self.assertRaisesMessage(
@@ -454,6 +458,9 @@ class ArchiveRelationshipMatrixTests(F4TransactionTestCase):
         second_authorization = ArchiveBatchItem.objects.get(
             batch_id=second_queued.batch_id,
         ).authorization
+        ArchiveWork.objects.filter(
+            projection_id=second.projection_id,
+        ).update(due_at=timezone.now() + timedelta(days=1))
         work = ArchiveWork.objects.get(projection_id=first.projection_id)
         claim, recovered = _claim_work(worker_id="relationship-worker", lease_seconds=5)
         self.assertIsNone(recovered)
@@ -524,6 +531,82 @@ class ArchiveRelationshipMatrixTests(F4TransactionTestCase):
                 kind=ArchiveAttemptOutcome.TARGET_CONFIRMED,
                 reason="forged-confirmation", ended_at=timezone.now(),
                 readback_observation=None,
+            )
+
+        ArchiveAttemptOutcome.objects.create(
+            organization=self.alpha,
+            attempt=attempt,
+            kind=ArchiveAttemptOutcome.UNKNOWN,
+            reason="synthetic-budget-use",
+            ended_at=timezone.now(),
+        )
+        for ordinal in (2, 3):
+            ArchiveWork.objects.filter(id=work.id).update(
+                state=ArchiveWork.STATE_PENDING,
+                due_at=timezone.now(),
+                lease_owner="",
+                lease_expires_at=None,
+            )
+            claim, recovered = _claim_work(
+                worker_id=f"budget-worker-{ordinal}",
+                lease_seconds=5,
+            )
+            self.assertIsNone(recovered)
+            self.assertEqual(claim[0], work.id)
+            work.refresh_from_db()
+            used = ArchiveAttempt.objects.create(
+                organization=self.alpha,
+                projection=work.projection,
+                authorization=work.scheduled_authorization,
+                work=work,
+                ordinal=ordinal,
+                receiver_id="synthetic-archive",
+                receiver_version="v1",
+                projection_digest=work.projection.projection_digest,
+                byte_length=work.projection.byte_length,
+                lease_owner=work.lease_owner,
+                fencing_generation=work.fencing_generation,
+                started_at=timezone.now(),
+                possible_write=True,
+            )
+            ArchiveAttemptOutcome.objects.create(
+                organization=self.alpha,
+                attempt=used,
+                kind=ArchiveAttemptOutcome.UNKNOWN,
+                reason="synthetic-budget-use",
+                ended_at=timezone.now(),
+            )
+        ArchiveWork.objects.filter(id=work.id).update(
+            state=ArchiveWork.STATE_PENDING,
+            due_at=timezone.now(),
+            lease_owner="",
+            lease_expires_at=None,
+        )
+        claim, recovered = _claim_work(
+            worker_id="budget-worker-4",
+            lease_seconds=5,
+        )
+        self.assertIsNone(recovered)
+        self.assertEqual(claim[0], work.id)
+        work.refresh_from_db()
+        with self.assertRaisesMessage(
+            DatabaseError,
+            "archive attempt lease, grant, projection, or budget mismatch",
+        ), transaction.atomic():
+            ArchiveAttempt.objects.create(
+                organization=self.alpha,
+                projection=work.projection,
+                authorization=work.scheduled_authorization,
+                work=work,
+                ordinal=4,
+                receiver_id="synthetic-archive",
+                receiver_version="v1",
+                projection_digest=work.projection.projection_digest,
+                byte_length=work.projection.byte_length,
+                lease_owner=work.lease_owner,
+                fencing_generation=work.fencing_generation,
+                started_at=timezone.now(),
+                possible_write=True,
             )
 
         authorization_id = uuid.uuid4()
@@ -601,7 +684,7 @@ class ArchiveRelationshipMatrixTests(F4TransactionTestCase):
             ArchiveReadbackObservation.STATE_CONFLICT,
         )
         with self.assertRaisesMessage(
-            DatabaseError, "archive confirmation requires exact verified readback",
+            DatabaseError, "archive outcome readback does not match attempt projection",
         ), transaction.atomic():
             ArchiveAttemptOutcome.objects.create(
                 organization=self.alpha, attempt=attempt,
