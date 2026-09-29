@@ -41,7 +41,7 @@ def _current_leaf_targets():
 def _restore_migration_targets(test_case, targets):
     MigrationExecutor(connection).migrate(targets)
     verifier = MigrationExecutor(connection)
-    missing = set(targets) - verifier.loader.applied_migrations
+    missing = set(targets).difference(verifier.loader.applied_migrations)
     test_case.assertFalse(
         missing,
         f"migration cleanup did not restore leaf targets: {sorted(missing)}",
