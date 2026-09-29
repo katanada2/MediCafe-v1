@@ -39,8 +39,11 @@ class AcceptedAdapter:
 
 
 class F4FixtureMixin:
-    def delivered_claim(self, *, route_version="v1"):
-        _claim, revision, _approval = self.approved_claim(route_version=route_version)
+    def delivered_claim(self, *, route_version="v1", note="SYNTHETIC_F2_OBSERVATION"):
+        _claim, revision, _approval = self.approved_claim(
+            route_version=route_version,
+            note=note,
+        )
         requested = request_delivery(
             actor=self.alpha_user, organization_id=self.alpha.id,
             request_id=uuid.uuid4(), claim_revision_id=revision.id,

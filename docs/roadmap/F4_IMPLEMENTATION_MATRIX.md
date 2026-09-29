@@ -18,10 +18,10 @@ source presence or a partial/local check is not completion evidence.
   There is no private V0 import, live endpoint, deployment work or production
   authority transfer.
 - The workflow-boundary registry and change-surface policy named by the review
-  skill are absent from this repository. F4 will extend and use
+  skill are not integrated yet in this repository. F4 uses
   `tests/helpers/workflow_boundary_contract.py` in concrete same-target and
-  fail-closed feature tests; absent registry infrastructure is not claimed as
-  integrated evidence.
+  fail-closed feature tests; registry-backed selection is not claimed as
+  evidence.
 
 ## Immutable owner DTOs
 
@@ -165,38 +165,38 @@ or the completed draft PR/evidence packet. Sol does not merge.
 
 ## Acceptance group implementation map
 
-The table below maps present test source to the numbered groups. It is not an
-execution report, and a broad file reference does not prove every required
-subcase. PostgreSQL/process results must be recorded separately against an exact
-commit.
+Every row below is source-present but PostgreSQL-unrun unless the evidence
+section says otherwise. A method name maps one concrete clause; it does not
+turn neighboring clauses into implied coverage.
 
-| Group | Primary executable evidence |
+| Group | Clause-level executable evidence |
 |---|---|
-| 1–2 | `tests/f4/test_outcomes.py`: strict interpretation, duplicate keys, replay, canonical money spellings and no double posting |
-| 3–4 | `tests/f4/test_outcomes.py`: complete historical conflict scan, retained accepted fact, ordered reevaluation, lifecycle gap and direct sequence-zero denial |
-| 5–6 | `tests/f4/test_outcomes.py`: conserved entries, atomic overallocation denial, precision normalization and typed components |
-| 7 | `tests/f4/test_outcomes.py` and `tests/f4/test_web.py`: relationship-class SQL guards, page-target retention, tenant authorization inherited from owner queries and CSRF denial |
-| 8 | `tests/f4/test_process_archive.py` plus F1–F3 regressions: fresh process persistence/restart and bounded non-payload command output |
-| 9 | `tests/f4/test_archive.py`: coherent capture/replay, nested-transaction denial and current fingerprint lag |
-| 10 | `tests/f4/test_archive.py` and `tests/f4/test_process_archive.py`: exact independent readback, send-success denial, wrong-item conflict and separate target restart |
-| 11 | `tests/f4/test_archive.py`: bounded automatic retry, pending-grant coalescing, reported-attempt preservation, immutable-unknown late confirmation and fence guard |
-| 12 | `tests/f4/test_process_archive.py`: unavailable archive leaves canonical remittance available, followed by exact recovery |
+| 1 | Both schemas and strict duplicate-key handling: `OutcomesAcceptanceTests.test_interpret_replay_has_one_candidate_and_one_actual_attempt`, `test_duplicate_json_key_records_terminal_failure_without_candidate`; upload bound, extra/schema/currency/negative/precision/zero/omitted-line failures: `F4AcceptanceMatrixTests.test_json_bounds_and_semantic_failures_are_attributable_and_atomic`; missing/corrupt retained bytes: `test_missing_or_corrupt_inbound_bytes_fail_before_candidate`. |
+| 2 | Source-key replay/conflict, changed content under an event ID, and wrong-candidate request reuse: `F4AcceptanceMatrixTests.test_source_replay_conflict_event_conflict_and_request_namespace`; semantically equal new delivery/no double post: `OutcomesAcceptanceTests.test_money_spellings_share_semantics_and_never_double_post`; identical and distinct concurrent accepted requests: `ReceiptAnchorConcurrencyTests.test_identical_concurrent_request_replays_one_receipt`, `test_distinct_concurrent_requests_share_fact_but_retain_each_receipt`. |
+| 3 | Historical acceptance after service/claim head change plus sender, receipt, line and organization mismatch: `F4AcceptanceMatrixTests.test_historical_attribution_survives_current_change_and_mismatches_fail_closed`; exact retained attribution and boundary helper: `OutcomesAcceptanceTests.test_lifecycle_acceptance_binds_exact_historical_delivery`; both forced receipt-anchor orderings and incompatible isolation: `ReceiptAnchorConcurrencyTests.test_acceptance_first_commits_fact_then_later_conflict_remains_alert`, `test_conflict_first_forces_waiting_acceptance_to_fail_closed`, `test_acceptance_rejects_repeatable_read_transaction`; explicit reevaluation does not post: `test_historical_attribution_survives_current_change_and_mismatches_fail_closed`, `OutcomesAcceptanceTests.test_reevaluation_reports_conflict_and_sequence_gap_in_order`. |
+| 4 | Gap, predecessor arrival, occupied sequence conflict, retained accepted correction and contiguous current state: `F4AcceptanceMatrixTests.test_lifecycle_predecessor_arrival_conflict_and_current_sequence`; ordered blockers: `OutcomesAcceptanceTests.test_reevaluation_reports_conflict_and_sequence_gap_in_order`; same-organization wrong-stream predecessor SQL denial: `OutcomesRelationshipMatrixTests.test_evidence_link_and_lifecycle_predecessor_must_match`. |
+| 5 | Exact once posting and duplicate replay: `OutcomesAcceptanceTests.test_remittance_posts_conserved_entries_once`, `test_money_spellings_share_semantics_and_never_double_post`; partial events/line subsets and atomic multi-line overallocation: `F4AcceptanceMatrixTests.test_partial_multievent_and_multiline_overallocation_is_all_or_nothing`; owner-command overallocation rollback: `OutcomesAcceptanceTests.test_overallocated_line_rolls_back_event_batch_and_receipt`; READ COMMITTED and stale REPEATABLE READ direct-SQL competition with exact SQLSTATE: `DirectPostingConcurrencyTests.test_direct_sql_conservation_serializes_rc_and_rejects_stale_rr`. |
+| 6 | Zero component omission, maximum parser amount, precision normalization and explicit overallocation reevaluation: `F4AcceptanceMatrixTests.test_zero_component_precision_maximum_and_explicit_reevaluation`, `test_partial_multievent_and_multiline_overallocation_is_all_or_nothing`, `OutcomesAcceptanceTests.test_money_spellings_share_semantics_and_never_double_post`; negative/refund-like/unsupported fields: `test_json_bounds_and_semantic_failures_are_attributable_and_atomic`; exact credit/adjustment/residual with no patient-liability or cash-settlement field: `test_partial_multievent_and_multiline_overallocation_is_all_or_nothing`. |
+| 7 | Named SQL relationship classes and immutable history: every method in `OutcomesRelationshipMatrixTests` and `ArchiveRelationshipMatrixTests`, plus `OutcomesSqlRelationshipTests`; wrong-org and inactive membership across every new owner command/query, using exact accepted request IDs for replay: both `F4AuthorizationTests` methods; all eight mutation routes require CSRF: `F4WebTests.test_every_f4_mutation_route_requires_csrf`; hidden target substitution remains covered by the other `F4WebTests` methods. |
+| 8 | Fresh-process accepted fact/ledger read, semantic reparse isolation and sentinel exclusion: `OutcomeProcessDurabilityTests.test_fresh_process_reads_accepted_ledger_and_never_logs_sentinel`; target and worker restart: `ArchiveProcessTests.test_exact_projection_survives_target_and_worker_restart`. |
+| 9 | Same fingerprint replay, successor and lag: `ArchiveFoundationTests.test_capture_replays_same_fingerprint_without_new_version`, `test_current_lag_uses_coherent_owner_snapshot`; forced capture/posting coherent boundary: `CapturePostingConcurrencyTests.test_capture_is_one_before_snapshot_and_posting_waits_then_creates_lag`; concurrent initial and successor head races without partial receipts: `test_concurrent_initial_capture_has_one_projection_and_no_partial_receipt`, `test_concurrent_successor_capture_advances_head_once`; nested isolation denial: `ArchiveFoundationTests.test_capture_rejects_nested_transaction_before_isolation_change`. |
+| 10 | Exact independent bytes/readback and boundary helper: `ArchiveFoundationTests.test_worker_confirms_only_independent_exact_item_readback`; send success without readback: `test_send_success_without_readback_remains_unknown_and_retries_bounded`; wrong item plus receiver/version/changed bytes: `test_wrong_projection_readback_cannot_confirm_item_with_existing_unknown`, `ArchiveReplayAndEvidenceTests.test_partial_batch_and_each_wrong_identity_variant_remain_attributable`; missing/unverified direct confirmation: `ArchiveRelationshipMatrixTests.test_authorization_attempt_outcome_and_receipt_relationships_fail_closed`, `test_wrong_item_readback_is_retained_conflict_and_cannot_confirm`; dropped-readback restart: `ArchiveProcessTests.test_exact_projection_survives_target_and_worker_restart`. |
+| 11 | Batch request replay/order conflict and unchanged budget: `ArchiveReplayAndEvidenceTests.test_batch_request_replay_order_conflict_and_later_batch_do_not_reset_budget`; manual retry replay/changed/stale conflict: `test_manual_retry_exact_replay_and_changed_or_stale_attempt_conflict`; competing workers: `ArchiveWorkerRaceTests.test_concurrent_workers_cannot_duplicate_grant_or_target_version`; expired pre-marker and possible-write fences/delayed old completion: `ArchiveFoundationTests.test_expired_pre_marker_lease_recovers_then_uses_fresh_generation`, `ArchiveWorkerRaceTests.test_expired_possible_write_is_closed_and_delayed_older_worker_is_fenced`; target same-ID conflict and delayed older head: `ArchiveProcessTests.test_target_rejects_same_id_changed_bytes_and_delayed_older_head`; durable same-key bounded retry and original attempt attribution: the bounded/replayed/late-confirmation `ArchiveFoundationTests`. |
+| 12 | Archive outage while ordinary service review, successor claim preparation and historical remittance posting continue, then exact recovery and lag: `ArchiveProcessTests.test_archive_outage_does_not_block_canonical_remittance_and_later_recovers`; one item acknowledgment cannot complete a two-item batch: `test_one_item_acknowledgment_never_completes_partial_batch`; in-memory partial attribution: `ArchiveReplayAndEvidenceTests.test_partial_batch_and_each_wrong_identity_variant_remain_attributable`. |
 
-### Explicit gaps at the local pause checkpoint
+## Current execution evidence and remaining gate
 
-The following card-required scenarios are not yet implemented as isolated,
-deterministic executable tests and are not covered merely by the mappings above:
+Database-free checks on 2026-09-29: all `src` and `tests` Python compiled;
+`manage.py check` passed; offline `makemigrations --check --dry-run` reported
+`No changes detected` while warning that local PostgreSQL history was
+unavailable; `git diff --check` passed; and
+`ArchiveAdapterTests.test_non_string_send_status_is_bounded_unknown` passed in
+0.056 seconds without a database. A direct `unittest` invocation first failed
+before collection because `src` was not on `PYTHONPATH`; the configured Django
+runner then executed the test successfully.
 
-- both forced concurrent receiver-receipt-anchor orderings for outcome
-  acceptance;
-- READ COMMITTED and REPEATABLE READ direct-SQL competing overposting schedules;
-- a forced archive-capture versus posting snapshot/head race;
-- competing archive lease/worker fence schedules, including delayed older
-  worker completion after a newer lease;
-- the complete relationship-class direct-SQL matrix across every F4 archive
-  projection/head/receipt/authorization/item/attempt/observation/outcome link;
-- forced concurrent archive head creation/successor races and batch order/replay
-  conflict schedules.
-The F4 PostgreSQL/process suite has not been executed locally. The branch must
-not be described as accepted or complete until these required scenarios are
-implemented and an exact-head fresh PostgreSQL run is green.
+The full F1–F4 PostgreSQL suite, all 69 F4 PostgreSQL/process tests, and a fresh
+exact-head PostgreSQL 17 CI run remain unrun. No local PostgreSQL retry is
+planned after the bounded connection timeout. This branch is a reviewable local
+evidence packet, not accepted or complete milestone evidence, until those
+checks pass and Astra reviews the exact head.

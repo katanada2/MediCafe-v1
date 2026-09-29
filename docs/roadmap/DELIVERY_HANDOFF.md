@@ -174,3 +174,45 @@ then run the static checks and the full PostgreSQL suite. Only after explicit
 user authorization to export this repository should the branch be pushed and a
 draft PR/CI run created. Preserve the existing F1–F3 history and do not begin a
 later milestone.
+
+## F4 local acceptance-coverage checkpoint
+
+On 2026-09-29, local F4 work resumed with explicit authorization while the
+separate GitHub export authorization remained pending. The preserved worktree
+had no active terminal session or repository lock and still pointed at
+`93acac9`. Sol retained sole production/shared-test ownership; no second writer
+or later-milestone work was started.
+
+The local evidence packet now maps every clause in the twelve card groups to a
+named test in [the F4 matrix](F4_IMPLEMENTATION_MATRIX.md). Added source covers
+strict input bounds and failure atomicity; source/event/request replay and
+conflict; historical attribution mismatches and current-head changes;
+predecessor arrival and stream conflict; multi-event/multi-line conservation;
+exact financial display/non-inference; full command/query authorization and
+mutation CSRF; fresh-process durability and sentinel exclusion; both
+receipt-anchor orderings; READ COMMITTED and stale REPEATABLE READ direct SQL;
+coherent capture/posting and initial/successor head races; named relationship
+guards; partial archive batches; receiver/version/byte conflicts; batch and
+manual-retry replay; competing workers; expired fences; delayed older target
+head protection; and canonical review/posting during an archive outage.
+
+Database-free execution on the commit containing this record consists of
+Python compilation across `src` and `tests`, green `manage.py check`, offline
+migration drift reporting `No changes detected`, and green `git diff --check`.
+The focused malformed archive-response `SimpleTestCase` passed through the
+configured Django runner (one test in 0.056 seconds, no database). A preliminary
+direct `unittest` command failed before collection because `src` was not on
+`PYTHONPATH`; it did not execute a test. The local PostgreSQL history probe
+timed out once, so no repeated local PostgreSQL attempts were made.
+
+The workflow-boundary registry, change-surface policy and selector scripts
+named by the review skill are not integrated yet in this repository. Concrete
+outcome/archive tests use `tests/helpers/workflow_boundary_contract.py`, and the
+matrix does not present registry-backed selection as evidence.
+
+All 69 F4 PostgreSQL/process tests and the complete F1–F4 regression suite
+remain unrun, as does fresh exact-head PostgreSQL 17 CI. Therefore this is a
+reviewable local source/evidence checkpoint, not F4 acceptance, production
+readiness, compliance evidence, live integration, private-data qualification,
+deployment authority or V0 authority transfer. Do not push or create a PR until
+the user separately authorizes repository export.

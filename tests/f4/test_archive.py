@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import time
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -346,21 +347,72 @@ class ArchiveFoundationTests(F4TransactionTestCase):
                 lease_expires_at=timezone.now() + timedelta(seconds=30),
             )
 
-    def test_finished_work_cannot_be_revived_without_pending_fresh_fence(self):
+    def test_terminal_work_cannot_be_revived_without_pending_fresh_fence(self):
+        for terminal in (ArchiveWork.STATE_FINISHED, ArchiveWork.STATE_BLOCKED):
+            with self.subTest(terminal=terminal):
+                captured = self.capture()
+                queue_archive_batch(
+                    actor=self.alpha_user, organization_id=self.alpha.id,
+                    request_id=uuid.uuid4(), projection_ids=[captured.projection_id],
+                )
+                work = ArchiveWork.objects.get(projection_id=captured.projection_id)
+                ArchiveWork.objects.filter(id=work.id).update(
+                    state=terminal, blocking_reason=f"synthetic-{terminal}",
+                )
+
+                for generation in (
+                    work.fencing_generation, work.fencing_generation + 1,
+                ):
+                    with self.subTest(generation=generation):
+                        with self.assertRaises(DatabaseError), transaction.atomic():
+                            ArchiveWork.objects.filter(id=work.id).update(
+                                state=ArchiveWork.STATE_LEASED,
+                                lease_owner="forged-revival",
+                                lease_expires_at=timezone.now() + timedelta(seconds=30),
+                                fencing_generation=generation,
+                            )
+
+    def test_expired_pre_marker_lease_recovers_then_uses_fresh_generation(self):
+        class CrashSignal(BaseException):
+            pass
+
+        class PreMarkerCrashAdapter(MemoryArchiveAdapter):
+            timeout = 0
+
+            def validate_configuration(self, receiver_id, receiver_version):
+                raise CrashSignal()
+
         captured = self.capture()
         queue_archive_batch(
             actor=self.alpha_user, organization_id=self.alpha.id,
             request_id=uuid.uuid4(), projection_ids=[captured.projection_id],
         )
+        with self.assertRaises(CrashSignal):
+            run_archive_worker_once(
+                worker_id="archive-pre-marker-crash", lease_seconds=1,
+                adapter=PreMarkerCrashAdapter(),
+            )
         work = ArchiveWork.objects.get(projection_id=captured.projection_id)
-        ArchiveWork.objects.filter(id=work.id).update(
-            state=ArchiveWork.STATE_FINISHED, blocking_reason="synthetic-finished",
+        self.assertEqual(work.fencing_generation, 1)
+        self.assertFalse(work.attempts.exists())
+        deadline = time.monotonic() + 2
+        while ArchiveWork.objects.get(id=work.id).lease_expires_at > timezone.now():
+            if time.monotonic() >= deadline:
+                self.fail("archive pre-marker lease did not expire within bounded wait")
+            time.sleep(0.02)
+
+        released = run_archive_worker_once(
+            worker_id="archive-recovery", lease_seconds=2,
+            adapter=MemoryArchiveAdapter(),
+        )
+        completed = run_archive_worker_once(
+            worker_id="archive-replacement", lease_seconds=2,
+            adapter=MemoryArchiveAdapter(),
         )
 
-        with self.assertRaises(DatabaseError), transaction.atomic():
-            ArchiveWork.objects.filter(id=work.id).update(
-                state=ArchiveWork.STATE_LEASED,
-                lease_owner="forged-revival",
-                lease_expires_at=timezone.now() + timedelta(seconds=30),
-                fencing_generation=work.fencing_generation,
-            )
+        self.assertEqual(released.reason_code, "archive_lease_released")
+        self.assertEqual(completed.reason_code, "archive_item_confirmed")
+        attempt = ArchiveAttemptOutcome.objects.get(
+            attempt__projection_id=captured.projection_id,
+        ).attempt
+        self.assertEqual(attempt.fencing_generation, 2)

@@ -105,3 +105,89 @@ class F4WebTests(F4TransactionTestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(ArchiveProjection.objects.exists())
+
+    def test_every_f4_mutation_route_requires_csrf(self):
+        _revision, intent, observation, _result = self.delivered_claim()
+        admitted = self.admit(
+            content=self.inbound_document(
+                kind="lifecycle", intent=intent, observation=observation,
+            ),
+            source_namespace="synthetic-lifecycle", media_type="application/json",
+        )
+        _delivery, lifecycle = self.admit_inbound(
+            kind="lifecycle", intent=intent, observation=observation,
+        )
+        _remittance_delivery, remittance = self.admit_inbound(
+            kind="remittance", intent=intent, observation=observation,
+        )
+        projection = capture_archive_projection(
+            actor=self.alpha_user, organization_id=self.alpha.id,
+            request_id=uuid.uuid4(), encounter_id=intent.claim_revision.encounter_id,
+            expected_projection_id=None,
+        )
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.alpha_user)
+        cases = (
+            ("interpret", reverse("outcomes_interpret", kwargs={
+                "organization_id": self.alpha.id, "delivery_id": admitted.delivery_id,
+            }), {"target_id": str(admitted.delivery_id)}),
+            ("accept", reverse("outcomes_candidate_detail", kwargs={
+                "organization_id": self.alpha.id, "candidate_id": lifecycle.candidate_id,
+            }), {
+                "action": "accept", "accept-request_uuid": str(uuid.uuid4()),
+                "accept-target_id": str(lifecycle.candidate_id),
+            }),
+            ("post", reverse("outcomes_candidate_detail", kwargs={
+                "organization_id": self.alpha.id, "candidate_id": remittance.candidate_id,
+            }), {
+                "action": "post", "post-request_uuid": str(uuid.uuid4()),
+                "post-target_id": str(remittance.candidate_id),
+            }),
+            ("reevaluate", reverse("outcomes_candidate_detail", kwargs={
+                "organization_id": self.alpha.id, "candidate_id": lifecycle.candidate_id,
+            }), {
+                "action": "reevaluate",
+                "reevaluate-target_id": str(lifecycle.candidate_id),
+            }),
+            ("capture", reverse("archive_encounter", kwargs={
+                "organization_id": self.alpha.id,
+                "encounter_id": intent.claim_revision.encounter_id,
+            }), {
+                "request_uuid": str(uuid.uuid4()),
+                "target_id": str(intent.claim_revision.encounter_id),
+                "expected_projection_id": str(projection.projection_id),
+            }),
+            ("queue", reverse("archive_projection_detail", kwargs={
+                "organization_id": self.alpha.id,
+                "projection_id": projection.projection_id,
+            }), {
+                "action": "queue", "queue-request_uuid": str(uuid.uuid4()),
+                "queue-target_id": str(projection.projection_id),
+            }),
+            ("retry", reverse("archive_projection_detail", kwargs={
+                "organization_id": self.alpha.id,
+                "projection_id": projection.projection_id,
+            }), {
+                "action": "retry", "retry-request_uuid": str(uuid.uuid4()),
+                "retry-target_id": str(projection.projection_id),
+                "retry-expected_attempt_id": str(uuid.uuid4()),
+            }),
+            ("reconcile", reverse("archive_projection_detail", kwargs={
+                "organization_id": self.alpha.id,
+                "projection_id": projection.projection_id,
+            }), {
+                "action": "reconcile",
+                "reconcile-target_id": str(projection.projection_id),
+            }),
+        )
+        before = (
+            AcceptedEvent.objects.count(), OutcomesCommandReceipt.objects.count(),
+            ArchiveBatch.objects.count(), ArchiveProjection.objects.count(),
+        )
+        for name, url, payload in cases:
+            with self.subTest(route=name):
+                self.assertEqual(client.post(url, payload).status_code, 403)
+        self.assertEqual((
+            AcceptedEvent.objects.count(), OutcomesCommandReceipt.objects.count(),
+            ArchiveBatch.objects.count(), ArchiveProjection.objects.count(),
+        ), before)
