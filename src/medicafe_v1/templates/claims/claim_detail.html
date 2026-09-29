@@ -13,4 +13,5 @@
 {% elif not actionability.blockers %}<form method="post">{% csrf_token %}{{ delivery_form.as_p }}<button type="submit" name="action" value="request_delivery">Request delivery of exact approved bytes</button></form>
 {% else %}<p>Delivery is blocked until this exact revision is currently approved.</p>{% endif %}
 <h2>Historical revisions</h2><ul>{% for item in claim.revisions.all %}<li>Revision {{ item.revision_number }} — {% if item.approvals.all %}approved historically{% else %}unapproved{% endif %}</li>{% endfor %}</ul>
+<p><a href="{% url 'archive_encounter' organization_id revision.encounter_id %}">Capture or inspect the synthetic archive projection for this encounter</a>.</p>
 {% endblock %}

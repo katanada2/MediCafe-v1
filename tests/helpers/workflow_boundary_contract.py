@@ -74,3 +74,67 @@ def assert_parse_boundary(testcase: SimpleTestCase, *, delivery, parser_version:
     testcase.assertTrue(all(observation.parse_result_id == result.id for observation in observations))
     testcase.assertTrue(all(observation.organization_id == delivery.organization_id for observation in observations))
     return result
+
+
+def assert_outcome_boundary(testcase: SimpleTestCase, *, candidate, expected_event,
+                            expected_entries: int):
+    """Assert retained source, interpretation, attribution and posting agree."""
+    from medicafe_v1.outcomes.models import (
+        AcceptedEventEvidence, InboundAttempt, PostingEntry,
+    )
+
+    candidate.refresh_from_db()
+    testcase.assertEqual(candidate.organization_id, candidate.delivery.organization_id)
+    testcase.assertEqual(candidate.semantic_digest, expected_event.semantic_digest)
+    testcase.assertEqual(candidate.intent_id, expected_event.intent_id)
+    testcase.assertEqual(candidate.claim_revision_id, expected_event.claim_revision_id)
+    testcase.assertEqual(candidate.receiver_receipt_id, expected_event.receiver_receipt_id)
+    testcase.assertTrue(AcceptedEventEvidence.objects.filter(
+        organization_id=candidate.organization_id,
+        event=expected_event, candidate=candidate,
+    ).exists())
+    testcase.assertTrue(InboundAttempt.objects.filter(
+        organization_id=candidate.organization_id, delivery=candidate.delivery,
+        interpreter_version=candidate.interpreter_version, succeeded=True,
+    ).exists())
+    entries = PostingEntry.objects.filter(
+        organization_id=candidate.organization_id, event=expected_event
+    )
+    testcase.assertEqual(entries.count(), expected_entries)
+    testcase.assertTrue(all(entry.batch.event_id == expected_event.id for entry in entries))
+    testcase.assertTrue(all(entry.account.claim_revision_id == candidate.claim_revision_id for entry in entries))
+    return expected_event
+
+
+def assert_archive_boundary(testcase: SimpleTestCase, *, projection,
+                            expected_attempts: int, expected_confirmed: bool):
+    """Assert exact projection, work attempts and independent readback agree."""
+    import hashlib
+
+    from medicafe_v1.archival.models import (
+        ArchiveAttempt, ArchiveAttemptOutcome, ArchiveReadbackObservation,
+    )
+
+    projection.refresh_from_db()
+    payload = bytes(projection.projection_bytes)
+    testcase.assertEqual(hashlib.sha256(payload).hexdigest(), projection.projection_digest)
+    testcase.assertEqual(len(payload), projection.byte_length)
+    attempts = ArchiveAttempt.objects.filter(projection=projection).order_by("started_at", "id")
+    testcase.assertEqual(attempts.count(), expected_attempts)
+    testcase.assertTrue(all(item.projection_digest == projection.projection_digest for item in attempts))
+    verified = ArchiveReadbackObservation.objects.filter(
+        lookup_projection=projection,
+        observed_state=ArchiveReadbackObservation.STATE_VERIFIED,
+        received_bytes=projection.projection_bytes,
+    )
+    testcase.assertEqual(verified.exists(), expected_confirmed)
+    confirmed = ArchiveAttemptOutcome.objects.filter(
+        attempt__projection=projection,
+        kind=ArchiveAttemptOutcome.TARGET_CONFIRMED,
+        readback_observation__in=verified,
+    )
+    if confirmed.exists():
+        testcase.assertTrue(expected_confirmed)
+    if expected_confirmed:
+        testcase.assertEqual(projection.work.state, "finished")
+    return projection

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<h1>Synthetic {{ candidate.kind }} candidate {{ candidate.event_id }}</h1>
+<p><strong>This is retained synthetic evidence, not payer approval, cash receipt, liability determination, or production completion.</strong></p>
+<dl><dt>Sender</dt><dd>{{ candidate.sender_id }}</dd><dt>Intent</dt><dd>{{ candidate.intent_id }}</dd><dt>Claim revision</dt><dd>{{ candidate.claim_revision_id }}</dd><dt>Semantic SHA-256</dt><dd>{{ candidate.semantic_digest }}</dd></dl>
+{% if evidence %}<p>Immutable accepted fact: event {{ evidence.event.id }} accepted at {{ evidence.event.accepted_at }}.</p>{% else %}<p>No accepted event is linked to this evidence.</p>{% endif %}
+{% if blockers %}<p>Current alerts/blockers: {{ blockers|join:", " }}.</p>{% else %}<p>No current blocker was found.</p>{% endif %}
+{% if candidate.kind == "lifecycle" %}<form method="post">{% csrf_token %}{{ accept_form.as_p }}<button name="action" value="accept">Accept exact lifecycle evidence</button></form>{% else %}<form method="post">{% csrf_token %}{{ post_form.as_p }}<button name="action" value="post">Post exact conserved remittance</button></form>{% endif %}
+<form method="post">{% csrf_token %}{{ reevaluate_form.as_p }}<button name="action" value="reevaluate">Re-evaluate current evidence</button></form>
+{% if candidate.lines.all %}<h2>Reported line components</h2><ul>{% for line in candidate.lines.all %}<li>Line {{ line.line_ordinal }}: payment {{ line.paid_amount }}, contractual adjustment {{ line.contractual_adjustment }}</li>{% endfor %}</ul>{% endif %}
+{% if ledger %}<h2>Derived synthetic ledger</h2><p>Original charge {{ ledger.currency }} {{ ledger.original_charge }}; payer-reported credits {{ ledger.payer_reported_credits }}; contractual adjustments {{ ledger.contractual_adjustments }}; residual {{ ledger.residual }}.</p>{% endif %}
+<p><a href="{% url 'outcomes_inbox' organization_id %}">Back to outcomes inbox</a></p>
+{% endblock %}

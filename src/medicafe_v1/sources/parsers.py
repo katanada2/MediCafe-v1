@@ -111,4 +111,6 @@ def parse(content, media_type):
         return parse_csv(content)
     if media_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return parse_docx(content)
+    if media_type == "application/json":
+        raise CommandError("parser_unsupported")
     raise CommandError("media_type_unsupported")

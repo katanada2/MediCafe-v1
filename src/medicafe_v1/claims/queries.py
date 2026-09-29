@@ -2,8 +2,10 @@ import hashlib
 import json
 from dataclasses import dataclass
 
+from django.db import connection
+
 from medicafe_v1.access.services import require_active_membership
-from medicafe_v1.records.queries import service_dependencies
+from medicafe_v1.records.queries import locked_encounter, service_dependencies
 from medicafe_v1.sources.domain import CommandError
 
 from .models import (
@@ -42,6 +44,223 @@ class DeliveryDetailView:
     current_state: str
     blocking_reasons: tuple[str, ...]
     permitted_actions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HistoricalClaimLine:
+    ordinal: int
+    claim_line_id: object
+    original_charge: object
+
+
+@dataclass(frozen=True)
+class HistoricalDeliveryAttribution:
+    organization_id: object
+    encounter_id: object
+    claim_id: object
+    claim_revision_id: object
+    claim_approval_id: object
+    intent_id: object
+    delivery_key: object
+    receiver_id: str
+    receiver_version: str
+    receiver_receipt_id: str
+    receiver_observation_id: object
+    evidence_fingerprint: str
+    reported_attempt_id: object
+    envelope_digest: str
+    byte_length: int
+    currency: str
+    original_charge: object
+    lines: tuple[HistoricalClaimLine, ...]
+
+
+@dataclass(frozen=True)
+class ArchiveClaimLineSnapshot:
+    claim_line_id: object
+    ordinal: int
+    service_id: object
+    service_revision_id: object
+    code: str
+    units: int
+    unit_amount: object
+    line_amount: object
+    currency: str
+
+
+@dataclass(frozen=True)
+class ArchiveDeliverySnapshot:
+    intent_id: object
+    claim_revision_id: object
+    delivery_key: object
+    receiver_version: str
+    observation_id: object
+    receipt_id: str
+    evidence_fingerprint: str
+
+
+@dataclass(frozen=True)
+class ArchiveClaimRevisionSnapshot:
+    revision_id: object
+    revision_number: int
+    envelope_digest: str
+    currency: str
+    total_amount: object
+    lines: tuple[ArchiveClaimLineSnapshot, ...]
+
+
+@dataclass(frozen=True)
+class ClaimArchiveSnapshot:
+    organization_id: object
+    encounter_id: object
+    claim_id: object | None
+    current_revision_id: object | None
+    envelope_digest: str
+    currency: str
+    total_amount: object | None
+    lines: tuple[ArchiveClaimLineSnapshot, ...]
+    deliveries: tuple[ArchiveDeliverySnapshot, ...]
+    revisions: tuple[ArchiveClaimRevisionSnapshot, ...]
+
+
+def _require_read_committed_atomic():
+    if not connection.in_atomic_block:
+        raise CommandError("acceptance_transaction_required")
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW transaction_isolation")
+        isolation = cursor.fetchone()[0].replace(" ", "_").lower()
+    if isolation != "read_committed":
+        raise CommandError("acceptance_isolation_incompatible")
+
+
+def historical_delivery_attribution(
+        *, actor, organization_id, intent_id, delivery_key, claim_revision_id,
+        expected_receiver_id, expected_receiver_version, receiver_receipt_id,
+        line_ordinals, for_acceptance=False):
+    """Resolve exact historical F3 delivery evidence without current-head policy."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    try:
+        intent = DeliveryIntent.objects.select_related(
+            "claim", "claim_revision", "claim_approval"
+        ).get(
+            organization_id=organization_id, id=intent_id,
+            delivery_key=delivery_key, claim_revision_id=claim_revision_id,
+        )
+    except (DeliveryIntent.DoesNotExist, ValueError) as exc:
+        raise CommandError("unmatched_target") from exc
+    if (
+        expected_receiver_id != "synthetic-receiver"
+        or intent.receiver_version != expected_receiver_version
+        or intent.claim_id != intent.claim_revision.claim_id
+        or intent.claim_approval.claim_revision_id != intent.claim_revision_id
+        or intent.claim_approval.envelope_digest != intent.envelope_digest
+    ):
+        raise CommandError("unmatched_target")
+
+    requested_ordinals = tuple(line_ordinals or ())
+    if len(set(requested_ordinals)) != len(requested_ordinals):
+        raise CommandError("unmatched_target")
+    revision_lines = {
+        line.ordinal: line
+        for line in intent.claim_revision.lines.order_by("ordinal", "id")
+    }
+    if any(ordinal not in revision_lines for ordinal in requested_ordinals):
+        raise CommandError("unmatched_target")
+
+    if for_acceptance:
+        _require_read_committed_atomic()
+        require_active_membership(
+            actor=actor, organization_id=organization_id, for_update=True
+        )
+        # Revalidate after the membership row is locked, before owner locks.
+        require_active_membership(actor=actor, organization_id=organization_id)
+        locked_encounter(
+            actor=actor, organization_id=organization_id,
+            encounter_id=intent.claim_revision.encounter_id,
+        )
+        try:
+            Claim.objects.select_for_update(of=("self",)).get(
+                organization_id=organization_id, id=intent.claim_id
+            )
+            intent = DeliveryIntent.objects.select_for_update(
+                of=("self",), no_key=True,
+            ).select_related(
+                "claim", "claim_revision", "claim_approval"
+            ).get(organization_id=organization_id, id=intent.id)
+        except (Claim.DoesNotExist, DeliveryIntent.DoesNotExist) as exc:
+            raise CommandError("unmatched_target") from exc
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT evidence_fingerprint
+                  FROM claims_receiverreceiptidentity
+                 WHERE receiver_id=%s AND receiver_version=%s AND receipt_id=%s
+                 FOR UPDATE
+                """,
+                [expected_receiver_id, expected_receiver_version, receiver_receipt_id],
+            )
+            anchor = cursor.fetchone()
+        if anchor is None:
+            raise CommandError("pending_delivery_evidence")
+
+    namespace = ReceiverObservation.objects.filter(
+        receiver_id=expected_receiver_id,
+        receiver_version=expected_receiver_version,
+        receipt_id=receiver_receipt_id,
+    )
+    target = namespace.filter(organization_id=organization_id, intent=intent)
+    if ReceiverObservation.objects.filter(
+        organization_id=organization_id, intent=intent,
+        observed_state=ReceiverObservation.STATE_CONFLICT,
+    ).exists():
+        raise CommandError("conflicting_identity_or_content")
+    if namespace.filter(observed_state=ReceiverObservation.STATE_CONFLICT).exists():
+        raise CommandError("conflicting_identity_or_content")
+    observation = target.filter(
+        observed_state=ReceiverObservation.STATE_ACCEPTED, binding_valid=True,
+    ).order_by("recorded_at", "id").first()
+    if observation is None:
+        if namespace.exclude(organization_id=organization_id, intent=intent).exists():
+            raise CommandError("conflicting_identity_or_content")
+        raise CommandError("pending_delivery_evidence")
+    if for_acceptance and anchor[0] != observation.evidence_fingerprint:
+        raise CommandError("conflicting_identity_or_content")
+
+    revision = intent.claim_revision
+    payload = bytes(revision.envelope_bytes)
+    if (
+        observation.received_bytes is None
+        or bytes(observation.received_bytes) != payload
+        or hashlib.sha256(payload).hexdigest() != intent.envelope_digest
+        or len(payload) != intent.byte_length
+        or observation.lookup_key != intent.delivery_key
+        or observation.claim_revision_id != intent.claim_revision_id
+        or observation.reported_organization_id != intent.organization_id
+        or observation.reported_intent_id != intent.id
+        or observation.reported_claim_revision_id != intent.claim_revision_id
+        or observation.reported_delivery_key != intent.delivery_key
+        or observation.reported_receiver_id != expected_receiver_id
+        or observation.reported_receiver_version != expected_receiver_version
+        or observation.reported_envelope_digest != intent.envelope_digest
+        or observation.reported_byte_length != intent.byte_length
+    ):
+        raise CommandError("conflicting_identity_or_content")
+
+    selected = requested_ordinals or tuple(revision_lines)
+    lines = tuple(
+        HistoricalClaimLine(
+            ordinal, revision_lines[ordinal].id, revision_lines[ordinal].line_amount
+        )
+        for ordinal in selected
+    )
+    return HistoricalDeliveryAttribution(
+        intent.organization_id, revision.encounter_id, intent.claim_id, revision.id,
+        intent.claim_approval_id, intent.id, intent.delivery_key,
+        expected_receiver_id, intent.receiver_version, receiver_receipt_id,
+        observation.id, observation.evidence_fingerprint,
+        observation.reported_attempt_id, intent.envelope_digest, intent.byte_length,
+        revision.currency, revision.total_amount, lines,
+    )
 
 
 def delivery_effect_state(intent):
@@ -293,3 +512,49 @@ def claim_for_encounter(*, actor, organization_id, encounter_id):
     return Claim.objects.select_related("current_revision").filter(
         organization_id=organization_id, encounter_id=encounter_id
     ).first()
+
+
+def archive_claim_snapshot(*, actor, organization_id, encounter_id):
+    """Return deterministic claim and accepted-delivery state in caller snapshot."""
+    require_active_membership(actor=actor, organization_id=organization_id)
+    claim = Claim.objects.select_related("current_revision").filter(
+        organization_id=organization_id, encounter_id=encounter_id
+    ).first()
+    if claim is None or claim.current_revision_id is None:
+        return ClaimArchiveSnapshot(
+            organization_id, encounter_id, claim.id if claim else None,
+            None, "", "", None, (), (), (),
+        )
+    revision = ClaimRevision.objects.get(
+        organization_id=organization_id, id=claim.current_revision_id, claim=claim
+    )
+    lines = tuple(ArchiveClaimLineSnapshot(
+        line.id, line.ordinal, line.service_id, line.service_revision_id,
+        line.code, line.units, line.unit_amount, line.line_amount, line.currency,
+    ) for line in revision.lines.order_by("ordinal", "id"))
+    observations = ReceiverObservation.objects.filter(
+        organization_id=organization_id, intent__claim=claim,
+        observed_state=ReceiverObservation.STATE_ACCEPTED, binding_valid=True,
+    ).select_related("intent").order_by("recorded_at", "id")
+    deliveries = tuple(ArchiveDeliverySnapshot(
+        item.intent_id, item.intent.claim_revision_id, item.intent.delivery_key,
+        item.receiver_version, item.id, item.receipt_id, item.evidence_fingerprint,
+    ) for item in observations)
+    revision_ids = {revision.id, *(item.intent.claim_revision_id for item in observations)}
+    revisions = []
+    for historical in ClaimRevision.objects.filter(
+        organization_id=organization_id, claim=claim, id__in=revision_ids,
+    ).order_by("revision_number", "id"):
+        historical_lines = tuple(ArchiveClaimLineSnapshot(
+            line.id, line.ordinal, line.service_id, line.service_revision_id,
+            line.code, line.units, line.unit_amount, line.line_amount, line.currency,
+        ) for line in historical.lines.order_by("ordinal", "id"))
+        revisions.append(ArchiveClaimRevisionSnapshot(
+            historical.id, historical.revision_number, historical.envelope_digest,
+            historical.currency, historical.total_amount, historical_lines,
+        ))
+    return ClaimArchiveSnapshot(
+        organization_id, encounter_id, claim.id, revision.id,
+        revision.envelope_digest, revision.currency, revision.total_amount,
+        lines, deliveries, tuple(revisions),
+    )

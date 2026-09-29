@@ -7,4 +7,6 @@ urlpatterns = [
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("", include("medicafe_v1.sources.urls")),
     path("", include("medicafe_v1.claims.urls")),
+    path("", include("medicafe_v1.outcomes.urls")),
+    path("", include("medicafe_v1.archival.urls")),
 ]

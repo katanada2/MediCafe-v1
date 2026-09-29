@@ -17,6 +17,8 @@ INSTALLED_APPS = [
     "medicafe_v1.sources",
     "medicafe_v1.records",
     "medicafe_v1.claims",
+    "medicafe_v1.outcomes",
+    "medicafe_v1.archival",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -73,3 +75,7 @@ SYNTHETIC_RECEIVER_ENDPOINTS = {
     }.items()
     if endpoint
 }
+SYNTHETIC_ARCHIVE_TIMEOUT_SECONDS = float(
+    os.environ.get("MEDICAFE_SYNTHETIC_ARCHIVE_TIMEOUT", "2.0")
+)
+SYNTHETIC_ARCHIVE_ENDPOINT = os.environ.get("MEDICAFE_SYNTHETIC_ARCHIVE_URL")

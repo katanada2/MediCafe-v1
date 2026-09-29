@@ -6,10 +6,55 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 ## Current state and entry gates
 
+- At the 2026-09-29 premerge checkpoint, F4 final candidate
+  [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10) was open at exact runtime head
+  `7e7bfebf34ec7109dc51fdeab0556339d616e3d3` on
+  `codex/f4-outcomes-archive`. Astra accepts the reviewed public-synthetic F4
+  implementation for governed merge based on the exact-head evidence below;
+  PR #10 is not yet merged. This current checkpoint supersedes the resume,
+  no-export and no-PR
+  instructions in the historical F4 pause sections below; those sections remain
+  as dated evidence of earlier state. Synthetic F4 milestone acceptance remains
+  conditional on merging PR #10 through normal repository protections.
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
 - Astra accepted F2 on 2026-09-22 and merged [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6) at `87526383052ebb68395fe1fe14f26f901bd5c952`. Its bounded service/claim authority is synthetic only.
 - F3 is accepted and merged through PR #8 at `0033e5c892a40535fb06200432cb62e68cfba69b`; final evidence is recorded below. F4 implementation is admitted only from main containing the merged [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md). An unmerged branch is not authorization. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
+
+## F4 final candidate and remaining qualification
+
+The accepted-for-merge candidate implements the complete public-synthetic F4
+card and maps
+all twelve acceptance groups in the [F4 matrix](F4_IMPLEMENTATION_MATRIX.md):
+strict inbound parsing and attribution; replay/conflict namespaces; historical
+delivery evidence and receipt-anchor ordering; lifecycle correction sequences;
+conserved multi-line and concurrent posting; bounded financial semantics;
+relationship, authorization, CSRF and form-retention guards; restart durability
+and redaction; coherent projection snapshots and head races; independent archive
+readback; bounded retries/fences; and partial/outage recovery. Source review is
+complete. [PostgreSQL run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
+passed fresh PostgreSQL 17 migrations, Django system checks, migration-drift
+verification and all 225 F1–F4 tests, including 76 F4 tests, in 254.325 seconds
+at exact runtime head
+`7e7bfebf34ec7109dc51fdeab0556339d616e3d3`.
+
+The locked verification stack is Python 3.13.15, Django 5.2.17, psycopg 3.2.13,
+PostgreSQL 17 and uv 0.12.13. Earlier diagnostic runs remain useful evidence:
+run `36614797914` executed 224 tests in 255.335 seconds and passed both production
+repairs, with only the now-fixed hidden bound retry form; run `36615037902`
+executed 225 tests in 253.590 seconds and additionally passed the controlled
+claims-reconciliation/capture interleaving, again with only that known form
+failure. Neither failed run is acceptance evidence.
+
+Still unrun are a manual browser walkthrough, local PostgreSQL execution and all
+private/deployed qualification. Public-synthetic acceptance does not establish
+real transport or payer schemas; correction, reversal or coordination-of-benefit
+semantics; opening balances; pricing or coverage policy; patient responsibility
+or communications; cash/deposit reconciliation; Medisoft mapping; scheduling or
+retention policy; identity-correction breadth; qualified recovery; deployment;
+or private migration qualification. These remain explicit future product and
+qualification gaps. No later milestone work, live integration, private data,
+production readiness, compliance claim or V0 authority transfer is included.
 
 ## F1 acceptance evidence
 
@@ -97,7 +142,16 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 
 ## Associated PR history
 
-- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): at the 2026-09-22 evidence checkpoint, ready for review and unmerged; runtime implementation/evidence accepted at `8b42173315b0b042a4aa718d10dd6c0175ac088a` with green run `35715327434` (143 tests in 142.246 seconds). Earlier diagnostic and green history is retained in the F3 matrix; follow the link for current PR state.
+- [F4 implementation PR #10](https://github.com/katanada2/MediCafe-v1/pull/10):
+  at the 2026-09-29 premerge checkpoint, open accepted-for-merge candidate at
+  `7e7bfebf34ec7109dc51fdeab0556339d616e3d3`; green exact-head
+  [run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027)
+  passed 225 tests in 254.325 seconds. Synthetic F4 milestone acceptance remains
+  conditional on governed merge.
+- [F4 admission PR #9](https://github.com/katanada2/MediCafe-v1/pull/9):
+  verified merged at `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`; admitted the bounded
+  public-synthetic F4 implementation without establishing completion.
+- [F3 implementation PR #8](https://github.com/katanada2/MediCafe-v1/pull/8): accepted and verified merged at `0033e5c892a40535fb06200432cb62e68cfba69b`; final implementation head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4` passed green run `35719081505` (149 tests in 147.898 seconds). Earlier diagnostic and green history is retained in the F3 matrix.
 - [F3 admission PR #7](https://github.com/katanada2/MediCafe-v1/pull/7): verified merged 2026-09-22 at `07bad8f39a631ced75b1f5df829c3a6cbb84d09e`; admits the public-synthetic F3 implementation assignment above without admitting F4.
 - [F2 implementation PR #6](https://github.com/katanada2/MediCafe-v1/pull/6): accepted and verified merged 2026-09-22 at `87526383052ebb68395fe1fe14f26f901bd5c952`; implementation and final-head evidence above.
 - [F4 planning PR #5](https://github.com/katanada2/MediCafe-v1/pull/5): verified merged at `8973724df9e36ae3f27538b9e51316152e518dfd`; planning only, runtime gate closed.
@@ -111,3 +165,108 @@ Deferred alternatives remain explicit in the card: clinical inference, real codi
 As of 2026-09-22, [F3 PR #8](https://github.com/katanada2/MediCafe-v1/pull/8) is accepted and verified merged at `0033e5c892a40535fb06200432cb62e68cfba69b`. Final implementation head `f5dfafe6ecc42f51a8b2b27c7fdea526432673d4` passed [run 35719081505](https://github.com/katanada2/MediCafe-v1/actions/runs/35719081505): all 149 tests in 147.898 seconds, PostgreSQL migrations, Django checks and drift verification; GitGuardian passed. All three inline review findings were resolved after focused code/regression review. This supersedes the earlier dated premerge checkpoint, whose evidence remains historical.
 
 The [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md) defines the next entry gate, claims-owned historical attribution and serialization contract, and Sol's ownership/checkpoints. Runtime starts only from main containing that merged record. Astra retains final acceptance and merge ownership. V0 production authority remains unchanged.
+
+## F4 local implementation pause checkpoint
+
+F4 implementation was admitted by merged [PR #9](https://github.com/katanada2/MediCafe-v1/pull/9)
+at `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`. Sol implemented the
+public-synthetic outcomes and delayed-archive slice on local branch
+`codex/f4-outcomes-archive`. Durable checkpoints are `684f2fa` (relationship
+design), `4801176` (outcomes foundation), `0a5ae6d` (archive workflow and
+relationship guards), and `3171ec0` (operator/process/evidence surfaces before
+this handoff clarification).
+
+The local tree provides strict lifecycle/remittance interpretation; historical
+delivery attribution; immutable accepted events and conserved posting entries;
+coherent REPEATABLE READ archive capture and lag comparison; fenced bounded
+archive attempts; independently verified readback with wrong-item conflict
+retention; authenticated target-bound operator forms; a separate loopback
+PostgreSQL archive target; setup documentation; and F1–F4 CI wiring.
+
+Executed local evidence is limited to AST parsing of 103 Python files, Django
+`manage.py check`, offline migration-state drift detection (`No changes
+detected`), and `git diff --check`, all green. The PostgreSQL-backed F4 tests and
+separate-process tests were not run locally because no configured local
+PostgreSQL service was available. No CI result or browser walkthrough is
+claimed.
+
+Publishing is also incomplete. The attempted push of
+`codex/f4-outcomes-archive` was rejected before execution by the sandbox approval
+reviewer because this turn lacked explicit user authorization to export the
+repository to its GitHub remote. No draft PR exists and no push occurred. Resume
+by obtaining explicit authorization, pushing the branch, opening a draft PR,
+and running the exact-head PostgreSQL 17 workflow.
+
+The [F4 matrix](F4_IMPLEMENTATION_MATRIX.md) lists present test-source mappings
+and the required scenarios still missing as isolated deterministic tests:
+concurrent receipt-anchor orderings, RC/RR direct-SQL overposting, capture versus
+posting snapshot races, lease/worker fence races, complete archive relationship
+classes, concurrent archive heads, and batch order/replay conflicts. F4 is not
+accepted at this pause point. No later milestone, deployment, private-data work,
+live integration, production readiness, compliance evidence, backup
+qualification, or V0 authority transfer is implied.
+
+On the 2026-09-25 F4 resume, the two final bounded static-review findings were
+closed locally: every transition into `leased` must now originate at `pending`
+with a freshly incremented fence, and non-string archive send statuses now
+produce bounded `archive_response_invalid` unknown results. Focused direct-SQL
+and malformed-response regressions accompany the changes. PostgreSQL execution
+evidence remains pending with the broader acceptance scenarios below.
+
+Resume from this exact local workspace and ownership boundary:
+
+```powershell
+Set-Location C:\Users\danie\.codex\worktrees\a1c6\MediCafe-v1\f4
+git -c safe.directory=C:/Users/danie/.codex/worktrees/a1c6/MediCafe-v1/f4 status --short
+git -c safe.directory=C:/Users/danie/.codex/worktrees/a1c6/MediCafe-v1/f4 log -5 --oneline
+```
+
+Sol remains the sole production writer for F4; Astra owns architecture,
+acceptance, publication authorization and merge. On resume, fix only the two
+open review findings and the explicitly listed missing acceptance scenarios,
+then run the static checks and the full PostgreSQL suite. Only after explicit
+user authorization to export this repository should the branch be pushed and a
+draft PR/CI run created. Preserve the existing F1–F3 history and do not begin a
+later milestone.
+
+## F4 local acceptance-coverage checkpoint
+
+On 2026-09-29, local F4 work resumed with explicit authorization while the
+separate GitHub export authorization remained pending. The preserved worktree
+had no active terminal session or repository lock and still pointed at
+`93acac9`. Sol retained sole production/shared-test ownership; no second writer
+or later-milestone work was started.
+
+The local evidence packet now maps every clause in the twelve card groups to a
+named test in [the F4 matrix](F4_IMPLEMENTATION_MATRIX.md). Added source covers
+strict input bounds and failure atomicity; source/event/request replay and
+conflict; historical attribution mismatches and current-head changes;
+predecessor arrival and stream conflict; multi-event/multi-line conservation;
+exact financial display/non-inference; full command/query authorization and
+mutation CSRF; fresh-process durability and sentinel exclusion; both
+receipt-anchor orderings; READ COMMITTED and stale REPEATABLE READ direct SQL;
+coherent capture/posting and initial/successor head races; named relationship
+guards; partial archive batches; receiver/version/byte conflicts; batch and
+manual-retry replay; competing workers; expired fences; delayed older target
+head protection; and canonical review/posting during an archive outage.
+
+Database-free execution on the commit containing this record consists of
+Python compilation across `src` and `tests`, green `manage.py check`, offline
+migration drift reporting `No changes detected`, and green `git diff --check`.
+The focused malformed archive-response `SimpleTestCase` passed through the
+configured Django runner (one test in 0.056 seconds, no database). A preliminary
+direct `unittest` command failed before collection because `src` was not on
+`PYTHONPATH`; it did not execute a test. The local PostgreSQL history probe
+timed out once, so no repeated local PostgreSQL attempts were made.
+
+The workflow-boundary registry, change-surface policy and selector scripts
+named by the review skill are not integrated yet in this repository. Concrete
+outcome/archive tests use `tests/helpers/workflow_boundary_contract.py`, and the
+matrix does not present registry-backed selection as evidence.
+
+All 70 F4 PostgreSQL/process tests and the complete F1–F4 regression suite
+remain unrun, as does fresh exact-head PostgreSQL 17 CI. Therefore this is a
+reviewable local source/evidence checkpoint, not F4 acceptance, production
+readiness, compliance evidence, live integration, private-data qualification,
+deployment authority or V0 authority transfer. Do not push or create a PR until
+the user separately authorizes repository export.

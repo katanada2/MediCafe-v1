@@ -6,7 +6,7 @@ from django import forms
 class UploadForm(forms.Form):
     source_namespace = forms.CharField(max_length=100, initial="synthetic-demo")
     source_key = forms.UUIDField(widget=forms.HiddenInput)
-    source_file = forms.FileField(label="Synthetic CSV or DOCX")
+    source_file = forms.FileField(label="Synthetic CSV, DOCX, or outcomes JSON")
     supersedes_id = forms.UUIDField(required=False, label="Corrects delivery ID (optional)")
 
     def __init__(self, *args, **kwargs):
@@ -30,4 +30,3 @@ class ResolutionForm(forms.Form):
         super().__init__(*args, **kwargs)
         if not self.is_bound and not self.initial.get("request_uuid"):
             self.initial["request_uuid"] = uuid.uuid4()
-

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}
+<h1>Synthetic inbound outcomes</h1>
+<p><strong>Inbound lifecycle and remittance messages are reported evidence only.</strong> They do not establish payer approval, cash receipt, liability, or production interoperability.</p>
+{% if interpret_form and interpret_form.errors %}<section><h2>Interpretation error</h2>{{ interpret_form.errors }}</section>{% endif %}
+<h2>Admitted JSON deliveries</h2>
+<ul>{% for delivery in deliveries %}<li>{{ delivery.source_namespace }} / {{ delivery.source_key }}
+<form method="post" action="{% url 'outcomes_interpret' organization_id delivery.delivery_id %}">{% csrf_token %}<input type="hidden" name="target_id" value="{{ delivery.delivery_id }}"><button>Interpret retained bytes</button></form></li>{% empty %}<li>No lifecycle or remittance JSON has been admitted.</li>{% endfor %}</ul>
+<h2>Retained candidates</h2>
+<ul>{% for candidate in candidates %}<li><a href="{% url 'outcomes_candidate_detail' organization_id candidate.id %}">{{ candidate.kind }} {{ candidate.event_id }}</a> — sender {{ candidate.sender_id }}, semantic SHA-256 {{ candidate.semantic_digest }}</li>{% empty %}<li>No interpreted candidates.</li>{% endfor %}</ul>
+{% endblock %}

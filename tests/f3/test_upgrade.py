@@ -33,6 +33,26 @@ from medicafe_v1.records.models import Encounter, Patient
 from tests.f2.base import F2TransactionTestCase
 
 
+def _current_leaf_targets():
+    executor = MigrationExecutor(connection)
+    return tuple(executor.loader.graph.leaf_nodes())
+
+
+def _restore_migration_targets(test_case, targets):
+    MigrationExecutor(connection).migrate(targets)
+    verifier = MigrationExecutor(connection)
+    missing = set(targets).difference(verifier.loader.applied_migrations)
+    test_case.assertFalse(
+        missing,
+        f"migration cleanup did not restore leaf targets: {sorted(missing)}",
+    )
+    tables = set(connection.introspection.table_names())
+    if any(app_label in {"outcomes", "archival"} for app_label, _name in targets):
+        test_case.assertIn("outcomes_inboundcandidate", tables)
+    if any(app_label == "archival" for app_label, _name in targets):
+        test_case.assertIn("archival_archiveprojection", tables)
+
+
 class ClaimsUpgradeRegressionTests(TransactionTestCase):
     """Exercise the claims0003-to-current upgrade on PostgreSQL only."""
 
@@ -47,12 +67,14 @@ class ClaimsUpgradeRegressionTests(TransactionTestCase):
 
     def setUp(self):
         super().setUp()
+        self.original_leaf_targets = _current_leaf_targets()
         self.executor = MigrationExecutor(connection)
-        self.addCleanup(self._restore_latest_migrations)
+        self.addCleanup(
+            _restore_migration_targets,
+            self,
+            self.original_leaf_targets,
+        )
         self.executor.migrate([self.migrate_from])
-
-    def _restore_latest_migrations(self):
-        MigrationExecutor(connection).migrate([self.migrate_to])
 
     @staticmethod
     def _normalized_receipts(receipt_model):
@@ -320,14 +342,18 @@ class F2ReceiptAttributionRegressionTests(F2TransactionTestCase):
             expected_envelope_digest=revision.envelope_digest,
         )
         receipt_ids = set(ClaimsCommandReceipt.objects.values_list("id", flat=True))
+        original_leaf_targets = _current_leaf_targets()
 
-        with self.assertRaisesMessage(
-            DatabaseError,
-            "populated F3 rollback is unsupported",
-        ):
-            MigrationExecutor(connection).migrate([
-                ("claims", "0008_f3_work_transition_guards")
-            ])
+        try:
+            with self.assertRaisesMessage(
+                DatabaseError,
+                "populated F3 rollback is unsupported",
+            ):
+                MigrationExecutor(connection).migrate([
+                    ("claims", "0008_f3_work_transition_guards")
+                ])
+        finally:
+            _restore_migration_targets(self, original_leaf_targets)
 
         applied = MigrationExecutor(connection).loader.applied_migrations
         self.assertIn(("claims", "0009_f3_receipt_and_observation_targets"), applied)

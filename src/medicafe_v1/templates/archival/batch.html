@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block content %}
+<h1>Synthetic archive batch {{ batch.id }}</h1>
+<p>Batch completion is derived item by item from independent exact readback; it is never inferred from a send response.</p>
+<ol>{% for item, status in rows %}<li>Item {{ item.ordinal }}: <a href="{% url 'archive_projection_detail' organization_id item.projection_id %}">projection {{ item.projection_id }}</a> — {{ status.state }} ({{ status.reason }})</li>{% empty %}<li>No items.</li>{% endfor %}</ol>
+{% endblock %}
