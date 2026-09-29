@@ -508,7 +508,7 @@ class CapturePostingConcurrencyTests(F4TransactionTestCase):
             actor=self.alpha_user,
             organization_id=self.alpha.id,
             encounter_id=revision.encounter_id,
-        ).state, "current")
+        ).state, "current_projection")
 
     def test_concurrent_initial_capture_has_one_projection_and_no_partial_receipt(self):
         revision, _intent, _observation, _result = self.delivered_claim()
