@@ -1,10 +1,14 @@
 # F4 implementation and acceptance matrix
 
-Status: implementation and evidence packet on `codex/f4-outcomes-archive`, based
-on merged F4 admission `5b351bd5856f138b4eca2809ad2a40c6e9bdb354`.
-This record fixes implementation seams and maps executable coverage. Executed
-exact-head PostgreSQL evidence must still be recorded in the delivery handoff;
-source presence or a partial/local check is not completion evidence.
+Status: accepted public-synthetic implementation, merged through PR #10 at
+`7432930536dfc26b48f3d57077256cc7e244c377`. The implementation branch was
+`codex/f4-outcomes-archive`, based on merged F4 admission
+`5b351bd5856f138b4eca2809ad2a40c6e9bdb354`. This record fixes implementation
+seams and maps executable coverage. Final reviewed head
+`dbaeb6c91aa4893c0dbda3d801e5be5d288c4cbb` passed 225 tests (76 F4) in
+262.205 seconds in run `36617022085`; see the [delivery handoff](DELIVERY_HANDOFF.md)
+for exact evidence and remaining unrun qualification. Source presence or a
+partial/local check is not completion evidence.
 
 ## Ownership and public boundary
 

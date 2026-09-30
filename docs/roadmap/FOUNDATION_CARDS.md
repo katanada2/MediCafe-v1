@@ -1,6 +1,6 @@
 # Foundation work cards
 
-Status: F1 and F2 are accepted; F2 merged through PR #6. F3 implementation is admitted only by merge of the explicit admission record in [the delivery handoff](DELIVERY_HANDOFF.md#f3-admission-and-delivery-assignment). F4 runtime remains gated. Only the F3 card's separate synthetic loopback receiver is authorized; no live integration or real data is admitted.
+Status: F1–F4 are accepted and merged, through PRs #2, #6, #8 and #10 respectively. See [the delivery handoff](DELIVERY_HANDOFF.md) for exact-head evidence and historical admission records. The cards below preserve their original bounded contracts; later milestones require separate admission. Only the reviewed synthetic loopback receiver/archive fixtures are admitted; no live integration or real data is authorized.
 
 Read the [charter](../architecture/CHARTER.md) and [stack decision](../decisions/0001-foundation-stack.md). Sol owns delivery; Astra owns architectural exceptions and acceptance.
 

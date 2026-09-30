@@ -1,8 +1,8 @@
 # Roadmap
 
-MediCafe V1 has accepted synthetic intake/identity (F1), service/claim approval (F2), and durable synthetic delivery with explicit uncertainty (F3). The reviewed F4 implementation is accepted for governed merge through PR #10. Main containing that merge completes the public-synthetic F1–F4 foundation. Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no dates and does not represent production readiness.
+MediCafe V1 has accepted and merged the public-synthetic F1–F4 foundation through PR #10: intake/identity, service/claim approval, durable delivery with explicit uncertainty, inbound outcomes and delayed archive. Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no delivery dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. F4 has reviewed exact-head evidence and is accepted for governed merge through PR #10. Main containing that merge completes the public-synthetic F1–F4 foundation.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. The [post-foundation continuation packet](POST_FOUNDATION_CONTINUATION.md) recommends a bounded [O1 operator exception review card](O1_OPERATOR_REVIEW_CARD.md), pending architecture review and explicit admission.
 
 ## Milestones
 
@@ -25,6 +25,6 @@ Work is coordinated through bounded assignments: Astra owns architecture and con
 
 - [F3 durable delivery and uncertainty contract](F3_DELIVERY_CARD.md) defines the reviewed effect boundary and independent receiver evidence. F3 runtime is admitted only when its explicit admission record in the handoff is merged.
 
-- [F4 inbound outcomes and delayed archive contract](F4_OUTCOMES_ARCHIVE_CARD.md) defines synthetic attribution, conserved postings and independent archive readback. Its verified implementation candidate is accepted for governed merge through PR #10; the public-synthetic milestone becomes merged repository state only after that merge.
+- [F4 inbound outcomes and delayed archive contract](F4_OUTCOMES_ARCHIVE_CARD.md) defines synthetic attribution, conserved postings and independent archive readback. Its public-synthetic implementation is accepted and merged through PR #10.
 
 - [F4 implementation admission](F4_IMPLEMENTATION_ADMISSION.md) records accepted F3 evidence, historical attribution, conflict serialization and the bounded Sol delivery assignment. Main containing the merged record admits F4 runtime.

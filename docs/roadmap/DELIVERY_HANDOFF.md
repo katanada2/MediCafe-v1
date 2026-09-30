@@ -6,24 +6,24 @@ Deliver the public synthetic foundation under the [charter](../architecture/CHAR
 
 ## Current state and entry gates
 
-- At the 2026-09-29 premerge checkpoint, F4 final candidate
-  [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10) was open at exact runtime head
-  `7e7bfebf34ec7109dc51fdeab0556339d616e3d3` on
-  `codex/f4-outcomes-archive`. Astra accepts the reviewed public-synthetic F4
-  implementation for governed merge based on the exact-head evidence below;
-  PR #10 is not yet merged. This current checkpoint supersedes the resume,
-  no-export and no-PR
-  instructions in the historical F4 pause sections below; those sections remain
-  as dated evidence of earlier state. Synthetic F4 milestone acceptance remains
-  conditional on merging PR #10 through normal repository protections.
+- [PR #10](https://github.com/katanada2/MediCafe-v1/pull/10) merged on
+  2026-09-29 at 19:13:48 UTC as `7432930536dfc26b48f3d57077256cc7e244c377`.
+  Astra accepted F4; the public-synthetic F1–F4 foundation is complete.
+  Final reviewed documentation head `dbaeb6c91aa4893c0dbda3d801e5be5d288c4cbb`
+  passed [run 36617022085](https://github.com/katanada2/MediCafe-v1/actions/runs/36617022085):
+  225 tests, including 76 F4 tests, in 262.205 seconds, with fresh PostgreSQL 17
+  migrations, system checks, migration-drift checks and GitGuardian green.
+  The earlier runtime-head evidence below remains distinct from this final run.
+  This merged checkpoint supersedes historical premerge, pause, no-export and
+  no-PR instructions below; those sections remain dated historical evidence.
 - Charter PR #1 is merged at `c24bbe5fe0bab3079b6c569e91143ccc23afced8`.
 - F1 PR #2 is merged at `cceec754ff00e754de41757cad49696b7173d0b7`; Astra accepted the synthetic intake/identity milestone on 2026-09-22.
 - Astra accepted F2 on 2026-09-22 and merged [PR #6](https://github.com/katanada2/MediCafe-v1/pull/6) at `87526383052ebb68395fe1fe14f26f901bd5c952`. Its bounded service/claim authority is synthetic only.
 - F3 is accepted and merged through PR #8 at `0033e5c892a40535fb06200432cb62e68cfba69b`; final evidence is recorded below. F4 implementation is admitted only from main containing the merged [F4 admission record](F4_IMPLEMENTATION_ADMISSION.md). An unmerged branch is not authorization. No real data, live integration, migration from V0, deployment or production authority transfer is authorized.
 
-## F4 final candidate and remaining qualification
+## F4 accepted foundation and remaining qualification
 
-The accepted-for-merge candidate implements the complete public-synthetic F4
+The merged implementation covers the complete public-synthetic F4
 card and maps
 all twelve acceptance groups in the [F4 matrix](F4_IMPLEMENTATION_MATRIX.md):
 strict inbound parsing and attribution; replay/conflict namespaces; historical
@@ -55,6 +55,23 @@ retention policy; identity-correction breadth; qualified recovery; deployment;
 or private migration qualification. These remain explicit future product and
 qualification gaps. No later milestone work, live integration, private data,
 production readiness, compliance claim or V0 authority transfer is included.
+
+## Post-foundation planning handoff — 2026-09-30
+
+The user authorized a bounded Sol planning continuation from the merge SHA above.
+The [continuation packet](POST_FOUNDATION_CONTINUATION.md) ranks remaining work
+and recommends [O1 operator exception review](O1_OPERATOR_REVIEW_CARD.md).
+O1 is a draft for Astra review, not runtime admission. Sol is sole writer for
+this documentation packet; existing foundation branches and owner seams remain
+preserved. No runtime, schema, dependency, integration, deployment, push or PR
+creation is authorized by this continuation. Astra retains architecture,
+consequential decisions and acceptance.
+
+The local browser assessment found no already available verified runtime/database
+environment; exact bounded observations and the reproducible walkthrough plan
+are in the packet. No browser or local PostgreSQL success is claimed. The prior
+225-test suite was not repeated for documentation-only changes. Registry-backed
+workflow verification is not integrated yet; this packet does not claim it.
 
 ## F1 acceptance evidence
 
