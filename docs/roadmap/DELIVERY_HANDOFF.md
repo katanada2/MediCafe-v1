@@ -61,7 +61,13 @@ production readiness, compliance claim or V0 authority transfer is included.
 The user authorized a bounded Sol planning continuation from the merge SHA above.
 The [continuation packet](POST_FOUNDATION_CONTINUATION.md) ranks remaining work
 and recommends [O1 operator exception review](O1_OPERATOR_REVIEW_CARD.md).
-O1 is a draft for Astra review, not runtime admission. Sol is sole writer for
+Following review of `18ccb97`, Astra accepted the baseline/status corrections,
+ranked plan and all four O1 families, default 25/max 50 per section, bounded
+evaluated windows, immutable exact-target links and no new work state, policy,
+mutations or effects. The revised card states explicit owner inclusion predicates,
+empty-window limits, independently observed archive snapshot identities and
+pure read-only classification. O1 is architecture-reviewed planning, NOT runtime
+admission. Sol is sole writer for
 this documentation packet; existing foundation branches and owner seams remain
 preserved. No runtime, schema, dependency, integration, deployment, push or PR
 creation is authorized by this continuation. Astra retains architecture,
@@ -72,6 +78,11 @@ environment; exact bounded observations and the reproducible walkthrough plan
 are in the packet. No browser or local PostgreSQL success is claimed. The prior
 225-test suite was not repeated for documentation-only changes. Registry-backed
 workflow verification is not integrated yet; this packet does not claim it.
+Concrete feature-boundary helper tests and a named matrix are accepted test
+design; required policy/registry/selector integration remains a separate reviewed
+tooling prerequisite before runtime admission/completion claims requiring it.
+Runtime, publication and browser gates remain open; no skill requirement is
+silently waived and no tooling implementation is included here.
 
 ## F1 acceptance evidence
 

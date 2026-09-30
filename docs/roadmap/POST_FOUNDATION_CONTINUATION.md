@@ -1,7 +1,9 @@
 # Post-foundation continuation packet
 
-Status: 2026-09-30 proposal for Astra review. Documentation only; no next-card
-runtime admission, publication, deployment or authority transfer.
+Status: 2026-09-30 architecture-reviewed planning. Astra accepted the baseline
+corrections, ranked plan and four-family O1 recommendation after reviewing
+`18ccb97`. Documentation only; NOT runtime-admitted, publication-authorized,
+deployment-qualified or an authority transfer.
 
 ## Baseline and decision authority
 
@@ -35,7 +37,7 @@ no real integration becomes safe because it appears earlier in this table.
 
 | Rank | Bounded work | Operator value and prerequisites | Remaining gate |
 | --- | --- | --- | --- |
-| 1 | O1 derived operator exception review | Find unresolved intake, delivery, inbound and archive work through existing owners; already grounded in F1–F4, no new money or retry policy | Accept narrow DTO/paging/failure contract and synthetic browser evidence plan |
+| 1 | O1 derived operator exception review | Find unresolved intake, delivery, inbound and archive work through existing owners; already grounded in F1–F4, no new money or retry policy | Separate runtime admission, reviewed tooling prerequisite and synthetic browser evidence |
 | 2 | Source/identity correction specification (G1/G2) | Correct mistaken attribution without losing downstream history; prerequisite to meaningful real intake and migration | Reviewed correction-after-effects, merge/split and alias collision rules; synthetic card before implementation |
 | 3 | Coding/pricing/coverage specification (G3) | Prepare actual billable service inputs instead of arbitrary synthetic values | Owner-approved versioned policy, provenance, applicability and examples; do not infer payer rules |
 | 4 | Provider transport/inbound contract qualification (G4) | Make send uncertainty and received responses interpretable outside fixtures | Selected provider, payload/response rights, enrollment, identity/auth, idempotency/readback and resubmission rules; private qualification |
@@ -63,15 +65,24 @@ existing screens or future cards.
   private contracts, environment authority and qualification absent here.
 - Persistent global work items, assignments, snooze/dismissal and automatic
   recovery are rejected for O1. They introduce competing state/authority and
-  are not needed to link existing owner explanations. This is a scope decision
-  proposed for review, not a permanent architectural ban.
+  are not needed to link existing owner explanations. Astra accepted this O1
+  scope boundary; it is not a permanent architectural ban.
 
-Astra should decide whether O1's four-family scope is preferable to a smaller
-delivery/inbound-only first slice; whether the proposed per-section page limit
-is appropriate; and whether registry-backed verification tooling should be a
-separate admitted tooling task. No owner reason may be promoted to a severity,
-deadline or next-action policy without a reviewed rule. Real format inventories,
-provider selection and financial policy owners remain open requirements.
+Astra accepted all four owner families, default 25/max 50 per section, bounded
+evaluated windows rather than history scans to fill filtered pages, immutable
+exact-target links and no new global work state, policy, mutations or effects.
+The revised [card](O1_OPERATOR_REVIEW_CARD.md) publishes owner inclusion
+predicates, empty-window semantics, independently observed archive enumeration/
+item/lag identities and timestamps, and pure read-only classification requirements.
+It does not promise coherent pages or aggregate completion.
+
+Remaining gates are explicit runtime admission, publication authorization,
+safe browser execution/evidence and separately reviewed skill-required tooling
+integration. Concrete boundary-helper tests plus the named feature matrix are
+accepted feature-evidence design, not integrated registry/selector coverage.
+No owner reason may become severity, deadline or next-action policy without a
+reviewed rule. Real format inventories, provider selection and financial policy
+owners remain open requirements.
 
 ## Bounded local browser assessment
 
@@ -125,8 +136,10 @@ production gap. Documentation checks cover whitespace, local file links and
 documentation-only scope. The workflow-boundary policy, registry and selector
 are not integrated yet in this repository. The existing feature contract helper
 is available, but no runtime tests or registry-backed selection are claimed for
-this planning packet. O1 must use concrete feature-boundary tests and resolve
-its verification-tooling disposition at admission.
+this planning packet. O1 must use the accepted concrete feature-boundary test
+design. Required policy/registry/selector integration is a separate reviewed
+tooling prerequisite before runtime admission/completion claims requiring it;
+this packet neither waives that requirement nor implements broad tooling.
 
 Local commit and report to Astra are the handoff boundary. Do not push, open a
 PR or implement O1 until separately authorized. Keep any corrections within

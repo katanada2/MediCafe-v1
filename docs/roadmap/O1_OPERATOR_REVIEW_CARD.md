@@ -1,7 +1,10 @@
 # O1: derived operator exception review
 
-Status: proposed implementation card, not admitted. Astra must accept the scope,
-interfaces and verification disposition before assigning runtime work.
+Status: architecture-reviewed planning after Astra's review of `18ccb97`.
+Four owner families, default 25/max 50 per section, bounded evaluated windows,
+immutable exact-target links and no new effect/business authority are accepted
+scope decisions. This card is NOT runtime-admitted or authorized for publication.
+Verification tooling and browser gates remain explicit below.
 
 ## Outcome and scope
 
@@ -11,19 +14,28 @@ links, and reaches the existing detail page to make any authorized decision.
 Refresh and restart derive the view again from durable owner state. No second
 queue, duplicate business status or cross-owner completion badge is stored.
 
-Include unresolved intake observations; delivery intents with blocked, uncertain
-or conflicting effect evidence; inbound candidates with outstanding acceptance
-or blockers; and captured archive heads with unconfirmed/conflicting item
-evidence or current projection lag. The inclusion predicate belongs to each
-owner and must be published before UI implementation. Do not scan all encounters
-to invent uncaptured-archive work, or add service/pricing/coverage policy.
+The proposed inclusion predicates below use existing owner meanings. They are
+part of the reviewed planning contract, not implemented queries. Owners classify
+their own evidence; composition must not reconstruct predicates or invent urgency.
+
+| Family | Include in the evaluated window | Exclude / preserve distinctions |
+| --- | --- | --- |
+| sources | Organization-scoped observations for which the owner finds no accepted identity decision (`unresolved_only=True`) | Resolved observations are not unresolved work; source row identity is not patient identity |
+| claims | Owner effect state `pending`, `leased` (pending execution), `blocked`, `uncertain` or `receiver_conflict`; also an intent with owner-reported current alerts/blockers even when historical receiver acceptance exists | Accepted history alone, safely cancelled or definitely-unsent history without a current alert is not an exception; retain acceptance alongside applicable current alerts, never erase it |
+| outcomes | Candidate with no accepted-event evidence, or any owner-ordered current blocker; accepted-event evidence remains included alongside current artifact availability or identity/content conflict alerts | Accepted facts without current alerts are not unresolved work; unmatched attribution stays absent and posting is not cash |
+| archival | Captured head whose exact item is unconfirmed/not queued/pending/unknown/rejected/conflicting, or whose separately observed lag is `projection_lag`; include unavailable or refresh-needed classification | Historical confirmation alone is not current export; a confirmed exact current head without alerts is excluded from exceptions; no invented uncaptured-encounter work |
+
+Each owner publishes exact state/reason mappings before UI implementation; a
+new policy meaning returns to Astra. Do not scan all encounters to invent
+uncaptured-archive work, or add service/pricing/coverage policy.
 
 O1 adds only owner read queries and immutable summaries, server-rendered
 composition/navigation, synthetic tests and setup/evidence docs. No schema
 change, worker change, dependency, frontend build, API consumer, network call,
 mutation endpoint, batch action, automatic retry/reevaluation, assignment,
 notification, dismissal or export is authorized. Existing command/form behavior
-is unchanged. A GET must not parse, reconcile, capture, queue or post anything.
+is unchanged. A GET must not parse, reconcile, capture, queue or post anything,
+including invoking a mutating reevaluation command to obtain a summary.
 
 ## Ownership and prerequisites
 
@@ -37,10 +49,14 @@ contracts as mechanical O1 work.
 Prerequisites: merged F1–F4 baseline from the [handoff](DELIVERY_HANDOFF.md),
 accepted owner predicates/DTOs, active-membership/scoped-query rules, safe
 synthetic PostgreSQL 17 test environment and explicit implementation admission.
-Admission must decide the registry/policy/selector integration gap. The existing
-`tests/helpers/workflow_boundary_contract.py` must be used in concrete feature
-tests; if registry-backed tooling is required, admit that separate tooling scope
-first rather than silently copying unrelated guidance into O1.
+The accepted feature-evidence design uses concrete
+`tests/helpers/workflow_boundary_contract.py` tests and a named acceptance
+matrix. This does not satisfy the separate unresolved tooling prerequisite:
+the skill-required policy/registry/selector integration is absent. Required
+integration must receive separate tooling review/admission before O1 runtime
+admission or completion claims that require it. No integrated coverage, waiver
+of skill requirements or broad tooling implementation is authorized by this
+documentation packet.
 
 ## Owner interfaces and rendering contract
 
@@ -52,7 +68,7 @@ inspect mutable ORM rows or reproduce business rules.
 | --- | --- | --- |
 | sources | `scoped_observations(..., unresolved_only=True)` and retained parse evidence | Unresolved observation identity, source delivery/parse-result IDs, owner reason and detail target; no raw notes |
 | claims | `delivery_worklist`, `delivery_detail`, `delivery_effect_state` | Exact intent/revision and relevant latest attempt, owner effect state and blockers; preserve historical receiver evidence separately |
-| outcomes | `inbound_candidates`, `candidate_detail`, current owner reevaluation logic | Candidate/delivery and attributed target when known, accepted historical event when present, ordered current blockers; no inferred attribution or posting |
+| outcomes | `inbound_candidates`, `candidate_detail`, pure owner classification of current blockers | Candidate/delivery and attributed target when known, accepted historical event when present, ordered current blockers; no inferred attribution or posting |
 | archival | `archive_heads`, `archive_item_status`, `archive_current_lag` | Exact captured head/projection/version, item evidence plus separately computed coherent owner lag; confirmation of an older item never implies current export |
 
 Each owner supplies `operator_review_page(actor, organization_id, cursor=None,
@@ -65,6 +81,14 @@ Unknown target relationships remain absent, not backfilled from the latest
 claim/encounter. No artifact bytes, raw patient/source fields, credentials or
 mutable models cross into composition.
 
+Summary population invokes only read queries and pure owner classification.
+If existing detail/reevaluation code writes conflicts, observations, evidence or
+attempts, expose a narrow pure read-only classification seam instead; do not
+call the mutating command and try to undo its writes. Existing pure classification
+may be reused only after verifying that property. Artifact verification remains
+an owner read with bounded bytes/items and explicit unavailable status, never a
+repair, parse or new persisted observation. No GET creates any evidence row.
+
 Limit is 1–50; default 25 per section. Use deterministic owner ordering with
 UUID tie-breakers and owner-validated, organization/filter-bound cursors. Return
 `has_more` rather than a misleading total. Changed state may move items between
@@ -74,15 +98,34 @@ sort, urgency score or complete/empty aggregate status is defined.
 Where current exception filtering needs per-item evaluation (notably archive
 lag), evaluate at most the page limit of owner candidates and advance the cursor
 through that evaluated window. Label the window and `has_more`; an empty filtered
-window is not “no exceptions.” Do not scan an unbounded history to fill a page.
+window means only “no matching exceptions in this evaluated window,” including
+when it is the last window: earlier windows may have matched and state may have
+changed since they were read. It never means the whole family is clear. An owner
+enumeration with zero candidates means only no candidates observed at that
+enumeration time, not a completed workflow. Do not scan an unbounded history to
+fill a page; no whole-family-clear assertion is part of O1.
 
-Each page is a bounded coherent read within its owner. The four sections are
-separate observations, explicitly labelled as such; no global transaction is
-claimed. In particular archival lag retains its existing standalone read-only
-REPEATABLE READ semantics and cannot be nested inside a composition transaction.
-Bound lag evaluation to selected captured heads. If evidence changes between
-head enumeration and lag query, return owner-defined stale/refresh-needed state
-with exact observed IDs rather than attach a newer head's result to an older row.
+No coherent page snapshot is promised. Ordinary owners declare their actual read
+contract: a scoped enumeration statement observes one database snapshot; further
+classification/detail statements may observe later state under READ COMMITTED.
+Publish enumeration and per-summary observation times/IDs, and preserve any
+stronger existing owner-local snapshot guarantee without inventing new locks,
+global transactions or a dashboard-wide snapshot requirement. Artifact reads
+are separate observations too. Timestamp labels are observation metadata, not
+proof of atomicity or terminal evidence.
+
+Archive explicitly has a scoped captured-head enumeration snapshot, followed
+by independently observed exact-item evidence and per-item lag. Each lag read
+retains its standalone read-only REPEATABLE READ transaction and cannot be
+nested inside composition. This does NOT make the archive page coherent across
+items or with enumeration. Carry enumeration time and head/projection/version
+IDs, item-evidence observation time and exact projection ID, and lag observation
+time and the lag query's head/projection IDs. Compare the scoped head/projection
+identities: changed or missing head identity yields refresh-needed, never a newer
+head's result attached as current evidence to an older row. Bound evaluation to
+the selected window. A later change can stale the displayed observations;
+refresh/detail revalidates them. No aggregate completion follows from any of
+these independently observed results.
 
 Every owner rechecks active membership and scopes targets before lookup.
 Composition admits the actor too. Authentication/authorization failure denies
@@ -131,15 +174,20 @@ tests, with named matrix rows and exact commit/run evidence:
    owner reason ordering and state distinctions survive composition unchanged.
 2. Cross-organization IDs/cursors, inactive membership, anonymous access and
    membership revoked between composition admission and owner query fail closed.
-3. Repeated GET, refresh, pagination and restart create no domain/receipt/work
-   rows and perform no external calls; links lead only to exact scoped targets.
+3. Repeated GET, refresh, pagination and restart create no domain, receipt, work,
+   attempt, conflict, observation or evidence rows and perform no external calls;
+   mutating classification commands are not invoked. Links lead only to exact
+   scoped targets; bounded artifact read failures remain unavailable.
 4. Owner outage, missing evidence and wrong-target evidence are unavailable or
    blocked, never empty/resolved/accepted; accepted history remains separate.
 5. Forced interleavings exercise delivery uncertainty changing after summary,
-   candidate blockers changing and archive head/lag change. No stale action or
-   wrong-head evidence is rendered as current completion.
+   candidate blockers changing and archive head/lag change between enumeration,
+   item evidence and independent lag transactions. Observation metadata and
+   refresh-needed identity checks prevent wrong-head attachment; no coherent
+   page, aggregate completion or stale action claim is rendered.
 6. Every section respects page/query bounds and stable tie-break ordering;
-   cursor tampering fails safely. No unbounded per-encounter lag scan is added.
+   cursor tampering fails safely. Empty filtered and last windows never imply
+   whole-family-clear. No unbounded per-encounter lag scan is added.
 7. Same-target owner-to-summary-to-detail propagation and wrong-target fail-closed
    tests use the feature boundary helper. Record target identity, producer,
    consumer, intent/attempt, terminal evidence, artifacts and wording. No registry

@@ -2,7 +2,7 @@
 
 MediCafe V1 has accepted and merged the public-synthetic F1–F4 foundation through PR #10: intake/identity, service/claim approval, durable delivery with explicit uncertainty, inbound outcomes and delayed archive. Exact implementation evidence and PR provenance are recorded in the delivery handoff. Later milestones remain gated. The roadmap has no delivery dates and does not represent production readiness.
 
-See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. The [post-foundation continuation packet](POST_FOUNDATION_CONTINUATION.md) recommends a bounded [O1 operator exception review card](O1_OPERATOR_REVIEW_CARD.md), pending architecture review and explicit admission.
+See [foundation cards](FOUNDATION_CARDS.md) for foundation milestone scope, the [F3 setup](F3_SETUP.md) for the reproducible synthetic receiver/worker walkthrough, the [F4 setup](F4_SETUP.md) for outcomes and delayed-archive operation, and [delivery handoff](DELIVERY_HANDOFF.md) for ownership, exact evidence, and PR history. The [post-foundation continuation packet](POST_FOUNDATION_CONTINUATION.md) recommends the architecture-reviewed [O1 operator exception review card](O1_OPERATOR_REVIEW_CARD.md), still requiring separate runtime admission, tooling and browser evidence gates.
 
 ## Milestones
 
