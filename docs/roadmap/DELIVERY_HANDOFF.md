@@ -90,9 +90,23 @@ The user authorized proceeding with the reviewed continuation: publish this
 planning packet, prepare disposable synthetic verification and the minimal
 workflow tooling prerequisite, then admit and implement O1 after concrete
 interface and prerequisite review. This supersedes the planning-only publication
-stop above. Root owns publication and architecture acceptance; Sol 6.1 / Medium
+stop above. The coordinator owns publication; Astra retains architecture and milestone acceptance. Sol 6.1 / Medium
 owns the bounded prerequisite proposal initially, with no concurrent checkout
-mutations. Real data, deployment and V0 authority transfer remain outside scope.
+mutations. Inputs: this packet, the O1 card, existing boundary helper and locked
+foundation workflow. Dependencies: packet publication and Astra review of the
+concrete prerequisite before implementation. Acceptance evidence: bounded
+runtime availability probes, exact proposed files/checks, static-catalog versus
+runtime-authority distinction, and explicit unrun verification. Privacy:
+public synthetic only; no private V0 material or host configuration contents.
+Stop condition for the proposal: report findings without code, installations,
+service launches or pushes; report access failures or transport stalls without
+retries. A subsequent bounded tooling admission must record implementation
+ownership, verification and stop conditions before edits. Real data, deployment
+and V0 authority transfer remain outside scope.
+
+Associated PR: [#11 planning packet](https://github.com/katanada2/MediCafe-v1/pull/11),
+last verified open on 2026-10-03. The coordinator owns its publication and governed
+merge; #10 remains the preceding completed implementation association.
 
 ## F1 acceptance evidence
 

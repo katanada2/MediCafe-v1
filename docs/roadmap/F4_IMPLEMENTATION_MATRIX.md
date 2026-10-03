@@ -221,7 +221,7 @@ hidden on an error before any attempt existed. Exact candidate
 [run 36615748027](https://github.com/katanada2/MediCafe-v1/actions/runs/36615748027):
 all 225 F1–F4 tests, including 76 F4 tests, plus fresh
 migrations, Django checks and migration-drift verification in 254.325 seconds.
-Astra accepts this reviewed public-synthetic implementation for governed merge.
+Historical premerge checkpoint (superseded by the accepted/merged header and final-head evidence above): Astra accepted this reviewed public-synthetic implementation for governed merge.
 No local PostgreSQL retry is planned. Synthetic F4 milestone acceptance remains
 conditional on merge of PR #10; an accepted candidate and open PR do not claim
 that merge already occurred.
