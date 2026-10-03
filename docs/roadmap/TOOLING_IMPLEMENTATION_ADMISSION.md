@@ -143,3 +143,15 @@ path resolution remains with the coordinator/user, independently of tooling.
 - Acceptance check: local 44-pass/one-skip provisional evidence, static linkage
   and docs checks are recorded; exact-head 3.13/feature CI, browser environment,
   milestone acceptance and O1 admission remain distinct gates.
+
+## Publication review — 2026-10-03
+
+The coordinator reviewed the ten-file public candidate and published
+[PR #12](https://github.com/katanada2/MediCafe-v1/pull/12), initially at
+`2e40d02f1cd714d0518d2c61bb2612351198fee1`. Last verified open; the coordinator
+owns publication and governed merge. PR #11 is merged at the base above;
+PR #10 remains the preceding accepted implementation association.
+A documentation clarification explicitly says O1 requires separate runtime
+admission. Required exact-head CI and review resolution precede tooling
+acceptance. Local Docker/browser evidence remains stopped/unrun as recorded;
+publication does not resolve that environment gate.

@@ -49,7 +49,7 @@ requirements in the card/CI; do not substitute a focused suite for them.
 
 Record selected contracts, feature tests, exact run/commit and executed/unrun
 checks in the handoff. No contract/helper integration means `not integrated yet`,
-not completion. O1 remains planned and separately runtime-admitted. Tooling tests
+not completion. O1 remains planned and requires separate runtime admission. Tooling tests
 and browser evidence have different meanings and must never be conflated.
 
 ## Governing guidance
