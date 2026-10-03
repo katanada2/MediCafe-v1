@@ -6,6 +6,11 @@ immutable exact-target links and no new effect/business authority are accepted
 scope decisions. Publication was authorized on 2026-10-03; this card is NOT runtime-admitted.
 Verification tooling and browser gates remain explicit below.
 
+The [owner interface proposal](O1_INTERFACE_CONTRACT.md) specifies read, cursor,
+evidence and proposed budget contracts. Astra accepted bounded owner-owned pure
+verification parsing to preserve detail semantic checks; budget/interface acceptance
+and explicit runtime admission remain required.
+
 ## Outcome and scope
 
 An active synthetic operator opens one organization-scoped page, sees four
@@ -34,8 +39,11 @@ composition/navigation, synthetic tests and setup/evidence docs. No schema
 change, worker change, dependency, frontend build, API consumer, network call,
 mutation endpoint, batch action, automatic retry/reevaluation, assignment,
 notification, dismissal or export is authorized. Existing command/form behavior
-is unchanged. A GET must not parse, reconcile, capture, queue or post anything,
-including invoking a mutating reevaluation command to obtain a summary.
+is unchanged. A GET must not interpret, reconcile, capture, queue or post anything,
+including invoking a mutating reevaluation command to obtain a summary. Bounded
+owner-owned pure verification parsing of retained bytes against the immutable
+candidate is permitted; it creates no new interpretation or evidence and confers
+no action authority. The interface proposal records this accepted refinement.
 
 ## Ownership and prerequisites
 
@@ -51,12 +59,11 @@ accepted owner predicates/DTOs, active-membership/scoped-query rules, safe
 synthetic PostgreSQL 17 test environment and explicit implementation admission.
 The accepted feature-evidence design uses concrete
 `tests/helpers/workflow_boundary_contract.py` tests and a named acceptance
-matrix. This does not satisfy the separate unresolved tooling prerequisite:
-the skill-required policy/registry/selector integration is absent. Required
-integration must receive separate tooling review/admission before O1 runtime
-admission or completion claims that require it. No integrated coverage, waiver
-of skill requirements or broad tooling implementation is authorized by this
-documentation packet.
+matrix. Merged PR #12 supplies the accepted policy/registry/selector prerequisite
+and exact-head Python 3.13 execution; its evidence is in the interface proposal.
+O1 itself remains planned: concrete feature/helper registration, usable runtime,
+interface acceptance and explicit admission remain required. This documentation
+packet neither claims O1 feature coverage nor waives skill-required verification.
 
 ## Owner interfaces and rendering contract
 
@@ -87,7 +94,9 @@ attempts, expose a narrow pure read-only classification seam instead; do not
 call the mutating command and try to undo its writes. Existing pure classification
 may be reused only after verifying that property. Artifact verification remains
 an owner read with bounded bytes/items and explicit unavailable status, never a
-repair, parse or new persisted observation. No GET creates any evidence row.
+repair, new interpretation or persisted observation. Bounded pure verification
+parsing stays inside the owner after streaming integrity checks, as specified in
+the interface proposal; no GET creates any evidence row.
 
 Limit is 1–50; default 25 per section. Use deterministic owner ordering with
 UUID tie-breakers and owner-validated, organization/filter-bound cursors. Return
