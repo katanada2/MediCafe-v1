@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "purpose": "static_developer_verification_catalog",
+  "governing_paths": [
+    "AGENTS.md", "docs/CHANGE_SURFACE_CONTROL.md", "docs/agent-guidance/README.md",
+    "tools/CODEX_SCAFFOLDING_COHERENCE_REVIEW.md", "tools/workflow_boundary_registry.json",
+    "tools/select_verification.py", "tools/run_modern_python.py",
+    "tests/tooling/test_workflow_verification.py", ".github/workflows/foundation.yml",
+    "docs/roadmap/TOOLING_IMPLEMENTATION_ADMISSION.md"
+  ],
+  "shared_code_paths": [
+    "manage.py", "pyproject.toml", "uv.lock", ".env.example",
+    "src/medicafe_v1/__init__.py", "src/medicafe_v1/settings.py", "src/medicafe_v1/urls.py",
+    "src/medicafe_v1/asgi.py", "src/medicafe_v1/wsgi.py", "src/medicafe_v1/access/*",
+    "src/medicafe_v1/templates/base.html", "src/medicafe_v1/templates/registration/*",
+    "tests/helpers/workflow_boundary_contract.py", "tests/__init__.py"
+  ],
+  "contracts": [
+    {
+      "id": "f1-intake-identity", "status": "implemented",
+      "paths": ["src/medicafe_v1/sources/*", "src/medicafe_v1/records/*", "src/medicafe_v1/templates/sources/*", "tests/f1/*", "docs/roadmap/F1_SETUP.md", "docs/roadmap/FOUNDATION_CARDS.md"],
+      "target_identity": "organization/delivery/parser version/parse result/observation",
+      "producer": "sources parsing", "consumer": "scoped observation review and records identity decision",
+      "intent": "explicit admission and parsing of retained bytes", "attempt": "append-only terminal ParseAttempt",
+      "terminal_evidence": "canonical ParseResult and same-target persisted Observation relationships",
+      "artifacts": "retained exact source bytes/digest/length", "packaging": "owner-scoped delivery and observation detail",
+      "consumer_wording": "parse history is separate from accepted identity",
+      "reconciliation": "newer failed parser attempt does not demote an earlier successful version",
+      "negative_cases": ["failed parse has no canonical result", "wrong organization cannot consume observations"],
+      "feature_tests": [{"file": "tests/f1/test_parse_lifecycle.py", "test": "ParseLifecycleTests.test_failed_attempt_retries_replays_and_keeps_version_history", "helper_chain": [{"file": "tests/helpers/workflow_boundary_contract.py", "symbol": "assert_parse_boundary"}]}]
+    },
+    {
+      "id": "f2-service-claim", "status": "implemented",
+      "paths": ["src/medicafe_v1/records/*", "src/medicafe_v1/claims/*", "src/medicafe_v1/templates/records/*", "src/medicafe_v1/templates/claims/*", "tests/f2/*", "tests/helpers/f2_claim_boundary.py", "docs/roadmap/F2*"],
+      "target_identity": "organization/encounter/selected service revisions/claim revision/approval",
+      "producer": "accepted records services", "consumer": "claims preparation and approval",
+      "intent": "explicit fixed service selection and approval", "attempt": "canonical request receipt",
+      "terminal_evidence": "immutable same-target ordered lines, amount and current actionability",
+      "artifacts": "exact approved envelope digest and bytes", "packaging": "claim revision detail and approval form",
+      "consumer_wording": "historical approval is not current dispatch authority",
+      "reconciliation": "service/policy changes block current actionability without erasing history",
+      "negative_cases": ["stale approval is not revived", "cross-organization or wrong-claim target fails closed"],
+      "feature_tests": [{"file": "tests/f2/test_claims.py", "test": "ClaimCommandTests.test_prepare_exact_order_decimal_total_and_approval_replay", "helper_chain": [{"file": "tests/helpers/f2_claim_boundary.py", "symbol": "assert_claim_boundary"}, {"file": "tests/helpers/workflow_boundary_contract.py", "symbol": "assert_parse_boundary"}]}]
+    },
+    {
+      "id": "f3-delivery", "status": "implemented",
+      "paths": ["src/medicafe_v1/claims/*", "src/medicafe_v1/synthetic_receiver.py", "src/medicafe_v1/templates/claims/*", "tests/f3/*", "docs/roadmap/F3*"],
+      "target_identity": "organization/claim revision/intent/attempt/receiver tuple",
+      "producer": "claims delivery worker", "consumer": "independent receiver observation and operator detail",
+      "intent": "exact revision delivery authorization", "attempt": "fenced attempt with possible-dispatch marker",
+      "terminal_evidence": "independent exact-key/bytes receiver observation, not send success",
+      "artifacts": "approved envelope digest/length", "packaging": "delivery effect state, history and actions",
+      "consumer_wording": "pending, unsent, unknown, rejected, accepted and conflict stay distinct",
+      "reconciliation": "historical readback does not grant retry permission or replace accepted history",
+      "negative_cases": ["unknown receiver effect cannot be cancelled", "wrong-target receiver evidence cannot confirm"],
+      "feature_tests": [{"file": "tests/f3/test_process_delivery.py", "test": "ProcessDeliveryTests.test_exact_bytes_each_receiver_survive_receiver_and_worker_restart", "helper_chain": [{"file": "tests/helpers/workflow_boundary_contract.py", "symbol": "assert_delivery_boundary"}]}]
+    },
+    {
+      "id": "f4-inbound", "status": "implemented",
+      "paths": ["src/medicafe_v1/outcomes/*", "src/medicafe_v1/sources/*", "src/medicafe_v1/claims/*", "src/medicafe_v1/templates/outcomes/*", "tests/f4/*", "docs/roadmap/F4*"],
+      "target_identity": "organization/delivery/candidate/historical intent/revision/accepted event",
+      "producer": "sources interpretation and outcomes acceptance", "consumer": "lifecycle and conserved posting ledger",
+      "intent": "explicit lifecycle acceptance or remittance posting", "attempt": "InboundAttempt and command receipt",
+      "terminal_evidence": "exact candidate attribution, immutable event and complete conserved posting entries",
+      "artifacts": "verified retained inbound bytes and semantic digest", "packaging": "candidate alerts alongside historical event/ledger",
+      "consumer_wording": "acknowledgment, credit, liability and cash are separate",
+      "reconciliation": "current artifact/conflict alerts never overwrite accepted historical facts",
+      "negative_cases": ["unmatched target cannot post", "overallocated line rolls back full event/batch"],
+      "feature_tests": [{"file": "tests/f4/test_outcomes.py", "test": "OutcomesAcceptanceTests.test_lifecycle_acceptance_binds_exact_historical_delivery", "helper_chain": [{"file": "tests/helpers/workflow_boundary_contract.py", "symbol": "assert_outcome_boundary"}]}]
+    },
+    {
+      "id": "f4-archive", "status": "implemented",
+      "paths": ["src/medicafe_v1/archival/*", "src/medicafe_v1/records/*", "src/medicafe_v1/claims/*", "src/medicafe_v1/outcomes/*", "src/medicafe_v1/synthetic_archive.py", "src/medicafe_v1/templates/archival/*", "tests/f4/*", "docs/roadmap/F4*"],
+      "target_identity": "organization/encounter/projection/version/digest/attempt/readback",
+      "producer": "coherent owner projection capture and archive worker", "consumer": "independent item readback and archive lag detail",
+      "intent": "exact captured projection queue authorization", "attempt": "fenced ArchiveAttempt with possible-write marker",
+      "terminal_evidence": "independent exact projection identity and bytes readback",
+      "artifacts": "immutable projection bytes, digest and length", "packaging": "per-item history/confirmation separate from current lag",
+      "consumer_wording": "send success is unknown until readback; old confirmation is not current export",
+      "reconciliation": "readback can confirm a historical unknown without rewriting its outcome",
+      "negative_cases": ["missing readback remains unknown", "wrong projection readback cannot confirm"],
+      "feature_tests": [{"file": "tests/f4/test_archive.py", "test": "ArchiveFoundationTests.test_send_success_without_readback_remains_unknown_and_retries_bounded", "helper_chain": [{"file": "tests/helpers/workflow_boundary_contract.py", "symbol": "assert_archive_boundary"}]}]
+    },
+    {
+      "id": "o1-operator-review", "status": "planned",
+      "paths": ["docs/roadmap/O1_OPERATOR_REVIEW_CARD.md", "docs/roadmap/POST_FOUNDATION_CONTINUATION.md"],
+      "target_identity": "planned organization/owner/exact target/head-projection observation identities",
+      "producer": "planned pure bounded owner classification", "consumer": "planned read-only exception sections and exact detail links",
+      "intent": "read only, no new command authorization", "attempt": "independently observed read windows, no persisted attempts",
+      "terminal_evidence": "not implemented; exact-target helper feature tests required by admission",
+      "artifacts": "no new evidence artifacts", "packaging": "planned bounded windows, unavailable/refresh-needed states",
+      "consumer_wording": "no coherent global page or whole-family-clear inference",
+      "reconciliation": "historical facts separate from current alerts and independent observation times",
+      "negative_cases": ["wrong-head evidence must not cross-attach", "GET must create no observation/evidence rows"],
+      "feature_tests": []
+    }
+  ]
+}

@@ -19,3 +19,8 @@ MediCafe V1 is currently a public architecture and foundation-planning repositor
 ## Review standard
 
 Review changes for clear ownership, explicit authority, durable state, operator explanations, and public-boundary safety. Do not describe planning artifacts as compliance evidence, production readiness, or a completed migration.
+
+For workflow state, evidence, consumer wording or governing-guidance changes,
+follow [change-surface control](docs/CHANGE_SURFACE_CONTROL.md). Use its selector
+for every changed path; guidance changes also follow the canonical procedure
+linked by [the policy-owner index](docs/agent-guidance/README.md).
