@@ -2,7 +2,7 @@
 
 Status: 2026-09-30 architecture-reviewed planning. Astra accepted the baseline
 corrections, ranked plan and four-family O1 recommendation after reviewing
-`18ccb97`. Documentation only; NOT runtime-admitted, publication-authorized,
+`18ccb97`. Documentation only; publication authorized on 2026-10-03. NOT runtime-admitted,
 deployment-qualified or an authority transfer.
 
 ## Baseline and decision authority
@@ -76,7 +76,7 @@ predicates, empty-window semantics, independently observed archive enumeration/
 item/lag identities and timestamps, and pure read-only classification requirements.
 It does not promise coherent pages or aggregate completion.
 
-Remaining gates are explicit runtime admission, publication authorization,
+Remaining gates are explicit runtime admission,
 safe browser execution/evidence and separately reviewed skill-required tooling
 integration. Concrete boundary-helper tests plus the named feature matrix are
 accepted feature-evidence design, not integrated registry/selector coverage.
@@ -141,6 +141,6 @@ design. Required policy/registry/selector integration is a separate reviewed
 tooling prerequisite before runtime admission/completion claims requiring it;
 this packet neither waives that requirement nor implements broad tooling.
 
-Local commit and report to Astra are the handoff boundary. Do not push, open a
+The earlier local-only handoff boundary was superseded on 2026-10-03 when the user authorized proceeding with publication and prerequisite preparation. O1 runtime implementation still requires its concrete admission record. The earlier instruction was: do not push, open a
 PR or implement O1 until separately authorized. Keep any corrections within
 this packet; architectural scope changes return to Astra.

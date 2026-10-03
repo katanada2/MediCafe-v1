@@ -84,6 +84,16 @@ tooling prerequisite before runtime admission/completion claims requiring it.
 Runtime, publication and browser gates remain open; no skill requirement is
 silently waived and no tooling implementation is included here.
 
+## Authorized continuation — 2026-10-03
+
+The user authorized proceeding with the reviewed continuation: publish this
+planning packet, prepare disposable synthetic verification and the minimal
+workflow tooling prerequisite, then admit and implement O1 after concrete
+interface and prerequisite review. This supersedes the planning-only publication
+stop above. Root owns publication and architecture acceptance; Sol 6.1 / Medium
+owns the bounded prerequisite proposal initially, with no concurrent checkout
+mutations. Real data, deployment and V0 authority transfer remain outside scope.
+
 ## F1 acceptance evidence
 
 Accepted implementation head: `56604ab6526c1ab917224cb9b6f0709b1161a06e`, branch `codex/f1-attributable-intake`, delivered through task `01a09b4c-b9cb-7f83-bc7b-2dbd2c3b717d`.

@@ -3,7 +3,7 @@
 Status: architecture-reviewed planning after Astra's review of `18ccb97`.
 Four owner families, default 25/max 50 per section, bounded evaluated windows,
 immutable exact-target links and no new effect/business authority are accepted
-scope decisions. This card is NOT runtime-admitted or authorized for publication.
+scope decisions. Publication was authorized on 2026-10-03; this card is NOT runtime-admitted.
 Verification tooling and browser gates remain explicit below.
 
 ## Outcome and scope
